@@ -1,0 +1,66 @@
+import { notFound } from "next/navigation";
+import { getCurrentProfile } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { createSession, joinSessionByCode } from "./actions";
+
+export default async function GamePage(props: PageProps<"/games/[slug]">) {
+  const { slug } = await props.params;
+  const [game, profile] = await Promise.all([
+    prisma.game.findUnique({ where: { slug } }),
+    getCurrentProfile(),
+  ]);
+
+  if (!game) {
+    notFound();
+  }
+
+  const canCreate = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
+  const createSessionForGame = createSession.bind(null, game.slug);
+
+  return (
+    <div className="mx-auto w-full max-w-md px-6 py-12">
+      <h1 className="text-2xl font-semibold text-zinc-900">{game.name}</h1>
+      <p className="mt-2 text-zinc-600">{game.description}</p>
+
+      {!profile && (
+        <p className="mt-6 text-sm text-zinc-500">
+          Log in to create or join a session.
+        </p>
+      )}
+
+      {canCreate && (
+        <form action={createSessionForGame} className="mt-8">
+          <button
+            type="submit"
+            className="w-full rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700"
+          >
+            Create a new session
+          </button>
+        </form>
+      )}
+
+      {profile && (
+        <form
+          action={joinSessionByCode}
+          className="mt-4 flex flex-col gap-3 rounded-lg border border-zinc-200 p-5"
+        >
+          <label className="flex flex-col gap-1 text-sm">
+            Have a join code?
+            <input
+              name="code"
+              placeholder="e.g. AB3XQ9"
+              required
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm uppercase"
+            />
+          </label>
+          <button
+            type="submit"
+            className="self-start rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+          >
+            Join session
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}

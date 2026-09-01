@@ -20,11 +20,12 @@ model Profile {
   role      Role     @default(STUDENT)
   createdAt DateTime @default(now())
 
-  posts       Post[]
-  enrollments Enrollment[]
-  courses     Course[]        @relation("CourseInstructor")
-  participant GameParticipant[]
-  chats       ChatMessage[]
+  posts        Post[]
+  enrollments  Enrollment[]
+  courses      Course[]          @relation("CourseInstructor")
+  gameSessions GameSession[]     @relation("GameSessionInstructor")
+  participant  GameParticipant[]
+  chats        ChatMessage[]
 }
 
 model Topic {
@@ -101,15 +102,22 @@ model GameSession {
   id           String        @id @default(uuid())
   game         Game          @relation(fields: [gameId], references: [id])
   gameId       String
-  course       Course        @relation(fields: [courseId], references: [id])
-  courseId     String
+  course       Course?       @relation(fields: [courseId], references: [id])
+  courseId     String?
+  instructor   Profile       @relation("GameSessionInstructor", fields: [instructorId], references: [id])
+  instructorId String
+  joinCode     String        @unique
   status       SessionStatus @default(PENDING)
-  currentRound Int           @default(0)
+  currentRound Int           @default(1)
+  totalRounds  Int           @default(20)
   config       Json?
   createdAt    DateTime      @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
 
   participants GameParticipant[]
   roundStates  GameRoundState[]
+  pendingOrders PendingOrder[]
 }
 
 enum BeerGameRole {
@@ -127,23 +135,41 @@ model GameParticipant {
   userId    String
   role      BeerGameRole
 
-  roundStates GameRoundState[]
+  roundStates   GameRoundState[]
+  pendingOrders PendingOrder[]
 
   @@unique([sessionId, userId])
 }
 
 model GameRoundState {
-  id             String          @id @default(uuid())
-  session        GameSession     @relation(fields: [sessionId], references: [id])
-  sessionId      String
-  participant    GameParticipant @relation(fields: [participantId], references: [id])
-  participantId  String
-  round          Int
-  inventory      Int
-  backlog        Int
-  incomingOrder  Int
-  outgoingOrder  Int
-  cost           Float
+  id               String          @id @default(uuid())
+  session          GameSession     @relation(fields: [sessionId], references: [id])
+  sessionId        String
+  participant      GameParticipant @relation(fields: [participantId], references: [id])
+  participantId    String
+  round            Int
+  incomingOrder    Int
+  incomingShipment Int
+  shipped          Int
+  outgoingOrder    Int
+  inventory        Int
+  backlog          Int
+  cost             Float
+
+  @@unique([participantId, round])
+}
+
+// Stages a submitted order until all 4 participants have one in for the
+// round, at which point the engine resolves them into GameRoundState rows
+// and this row is deleted — keeps GameRoundState always fully-resolved.
+model PendingOrder {
+  id            String          @id @default(uuid())
+  session       GameSession     @relation(fields: [sessionId], references: [id])
+  sessionId     String
+  participant   GameParticipant @relation(fields: [participantId], references: [id])
+  participantId String
+  round         Int
+  amount        Int
 
   @@unique([participantId, round])
 }

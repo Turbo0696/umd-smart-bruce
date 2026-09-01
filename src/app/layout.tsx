@@ -53,6 +53,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               >
                 Supply Chain Management
               </Link>
+              <Link href="/games" className="hover:text-zinc-900">
+                Games
+              </Link>
               {profile ? (
                 <div className="flex items-center gap-4">
                   <span className="text-zinc-400">

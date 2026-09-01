@@ -29,4 +29,26 @@ for (const topic of topics) {
   console.log(`Seeded topic: ${topic.slug}`);
 }
 
+const scm = await prisma.topic.findUniqueOrThrow({
+  where: { slug: "supply-chain-management" },
+});
+
+await prisma.game.upsert({
+  where: { slug: "beer-game" },
+  update: {
+    name: "Beer Game",
+    description:
+      "The classic MIT supply-chain simulation: 4 roles, weekly orders under shipment delay, and the bullwhip effect.",
+    topicId: scm.id,
+  },
+  create: {
+    slug: "beer-game",
+    name: "Beer Game",
+    description:
+      "The classic MIT supply-chain simulation: 4 roles, weekly orders under shipment delay, and the bullwhip effect.",
+    topicId: scm.id,
+  },
+});
+console.log("Seeded game: beer-game");
+
 await prisma.$disconnect();
