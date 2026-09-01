@@ -42,8 +42,10 @@ export default async function SessionPage(
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-12">
-      <h1 className="text-2xl font-semibold text-zinc-900">{session.game.name}</h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+        {session.game.name}
+      </h1>
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
         Join code: <span className="font-mono">{session.joinCode}</span>
       </p>
 
@@ -110,16 +112,19 @@ function PendingView({
 
   return (
     <div className="mt-8">
-      <h2 className="font-semibold text-zinc-900">
+      <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
         Waiting room ({session.participants.length}/4)
       </h2>
-      <ul className="mt-3 flex flex-col gap-1 text-sm text-zinc-700">
+      <ul className="mt-3 flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
         {ROLE_ORDER.map((role) => {
           const p = session.participants.find((p) => p.role === role);
           return (
-            <li key={role} className="flex justify-between rounded border border-zinc-100 px-3 py-2">
+            <li
+              key={role}
+              className="flex justify-between rounded border border-zinc-100 px-3 py-2 dark:border-zinc-800"
+            >
               <span>{role}</span>
-              <span className="text-zinc-500">
+              <span className="text-zinc-500 dark:text-zinc-500">
                 {p ? p.user.name ?? p.user.email : "open"}
               </span>
             </li>
@@ -131,7 +136,7 @@ function PendingView({
         <form action={joinAction} className="mt-4">
           <button
             type="submit"
-            className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             Join this session
           </button>
@@ -139,11 +144,13 @@ function PendingView({
       )}
 
       {!isLoggedIn && (
-        <p className="mt-4 text-sm text-zinc-500">Log in to join.</p>
+        <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
+          Log in to join.
+        </p>
       )}
 
       {viewerParticipant && !full && (
-        <p className="mt-4 text-sm text-zinc-500">
+        <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
           You&apos;re in as <strong>{viewerParticipant.role}</strong>. Waiting
           for more players.
         </p>
@@ -153,7 +160,7 @@ function PendingView({
         <form action={startAction} className="mt-4">
           <button
             type="submit"
-            className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             Start game
           </button>
@@ -161,7 +168,9 @@ function PendingView({
       )}
 
       {!canManage && full && !viewerParticipant?.role && (
-        <p className="mt-4 text-sm text-zinc-500">This session is full.</p>
+        <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
+          This session is full.
+        </p>
       )}
 
       <PollingRefresher />
@@ -182,7 +191,7 @@ async function ActiveView({
 }) {
   if (!viewerParticipant) {
     return (
-      <p className="mt-8 text-sm text-zinc-500">
+      <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-500">
         This session is already in progress and you&apos;re not a participant.
       </p>
     );
@@ -210,7 +219,7 @@ async function ActiveView({
 
   return (
     <div className="mt-8">
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-zinc-500 dark:text-zinc-500">
         Round {session.currentRound} of {session.totalRounds} — your role:{" "}
         <strong>{viewerParticipant.role}</strong>
       </p>
@@ -224,7 +233,7 @@ async function ActiveView({
       </div>
 
       {myPendingOrder ? (
-        <p className="mt-6 text-sm text-zinc-600">
+        <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
           Order submitted ({myPendingOrder.amount} units). Waiting for other
           players to submit round {session.currentRound}...
         </p>
@@ -239,12 +248,12 @@ async function ActiveView({
               step={1}
               required
               defaultValue={incomingOrderLastRound ?? 4}
-              className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             />
           </label>
           <button
             type="submit"
-            className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             Submit order
           </button>
@@ -264,7 +273,11 @@ async function CompletedView({
   canView: boolean;
 }) {
   if (!canView) {
-    return <p className="mt-8 text-sm text-zinc-500">This game has ended.</p>;
+    return (
+      <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-500">
+        This game has ended.
+      </p>
+    );
   }
 
   const rounds = await prisma.gameRoundState.findMany({
@@ -289,10 +302,10 @@ async function CompletedView({
 
   return (
     <div className="mt-8">
-      <h2 className="font-semibold text-zinc-900">
+      <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
         Game complete — orders placed per round
       </h2>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
         This is the bullwhip effect: watch how order variance grows as you
         move from Retailer toward Factory.
       </p>
@@ -306,13 +319,20 @@ async function CompletedView({
         />
       </div>
 
-      <h3 className="mt-8 font-semibold text-zinc-900">Total cost by role</h3>
+      <h3 className="mt-8 font-semibold text-zinc-900 dark:text-zinc-50">
+        Total cost by role
+      </h3>
       <table className="mt-3 w-full text-sm">
         <tbody>
           {ROLE_ORDER.map((role) => (
-            <tr key={role} className="border-b border-zinc-100">
-              <td className="py-2 text-zinc-700">{role}</td>
-              <td className="py-2 text-right text-zinc-900">
+            <tr
+              key={role}
+              className="border-b border-zinc-100 dark:border-zinc-800"
+            >
+              <td className="py-2 text-zinc-700 dark:text-zinc-300">
+                {role}
+              </td>
+              <td className="py-2 text-right text-zinc-900 dark:text-zinc-50">
                 ${totalCostByRole[role].toFixed(2)}
               </td>
             </tr>
@@ -325,9 +345,11 @@ async function CompletedView({
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-zinc-200 p-3">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="text-lg font-semibold text-zinc-900">{value}</p>
+    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <p className="text-xs text-zinc-500 dark:text-zinc-500">{label}</p>
+      <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+        {value}
+      </p>
     </div>
   );
 }

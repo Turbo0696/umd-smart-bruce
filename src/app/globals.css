@@ -1,26 +1,17 @@
 @import "tailwindcss";
 
 /*
- * This site is light-themed only — no component uses a `dark:` variant,
- * so `color-scheme: light` stops browsers from auto-dark-mode-inverting
- * text/backgrounds (which previously left near-black heading text sitting
- * on a near-black background when the OS was in dark mode).
+ * Actual colors live on elements via Tailwind's `dark:` variant (which
+ * follows prefers-color-scheme automatically in Tailwind v4) — not here.
+ * Keeping page background/text out of plain unlayered CSS avoids the
+ * earlier bug: an unlayered `body { background }` rule here would always
+ * beat Tailwind's `@layer`'d utility classes regardless of specificity,
+ * silently overriding whatever dark: classes are applied in JSX.
  */
 :root {
-  --background: #ffffff;
-  --foreground: #18181b;
-  color-scheme: light;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  color-scheme: light dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }

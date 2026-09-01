@@ -30,9 +30,15 @@ export function LineChart({ series }: { series: Series[] }) {
           y1={HEIGHT - PAD}
           x2={WIDTH - PAD}
           y2={HEIGHT - PAD}
-          stroke="#e4e4e7"
+          className="stroke-zinc-200 dark:stroke-zinc-700"
         />
-        <line x1={PAD} y1={PAD} x2={PAD} y2={HEIGHT - PAD} stroke="#e4e4e7" />
+        <line
+          x1={PAD}
+          y1={PAD}
+          x2={PAD}
+          y2={HEIGHT - PAD}
+          className="stroke-zinc-200 dark:stroke-zinc-700"
+        />
         {series.map((s) => (
           <polyline
             key={s.label}
@@ -43,7 +49,7 @@ export function LineChart({ series }: { series: Series[] }) {
           />
         ))}
       </svg>
-      <div className="mt-2 flex flex-wrap gap-4 text-xs text-zinc-600">
+      <div className="mt-2 flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-400">
         {series.map((s) => (
           <span key={s.label} className="flex items-center gap-1.5">
             <span
