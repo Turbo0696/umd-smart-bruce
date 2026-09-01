@@ -28,26 +28,137 @@ function countMatches(perm: number[]): number {
   return perm.reduce((acc, mother, baby) => acc + (mother === baby ? 1 : 0), 0);
 }
 
-function BabyChip({ babyNum, motherNum, match }: { babyNum: number; motherNum: number; match: boolean }) {
+const MATCH_STROKE = "stroke-emerald-500 dark:stroke-emerald-400";
+const MISS_STROKE = "stroke-zinc-300 dark:stroke-zinc-700";
+const MATCH_FILL = "fill-emerald-100 dark:fill-emerald-950";
+const MISS_FILL = "fill-zinc-100 dark:fill-zinc-800";
+const FACE_STROKE = "stroke-zinc-600 dark:stroke-zinc-300";
+
+// Mother icon: a wider oval with a little hair arc on top, distinct from
+// the plain round baby icon below it.
+function MotherIcon({ x, y, matched, label }: { x: number; y: number; matched: boolean; label: number }) {
+  const r = 20;
   return (
-    <div
-      className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-xs ${
-        match
-          ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/40"
-          : "border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
-      }`}
-    >
-      <span className="text-zinc-500 dark:text-zinc-500">Baby {babyNum}</span>
-      <span className="text-base">{match ? "✓" : "→"}</span>
-      <span
-        className={
-          match
-            ? "font-semibold text-emerald-700 dark:text-emerald-400"
-            : "font-medium text-zinc-700 dark:text-zinc-300"
-        }
+    <g>
+      <text
+        x={x}
+        y={y - r - 10}
+        textAnchor="middle"
+        className="fill-zinc-500 dark:fill-zinc-500"
+        fontSize={11}
       >
-        Mother {motherNum}
-      </span>
+        Mother {label}
+      </text>
+      <path
+        d={`M ${x - r} ${y - 4} A ${r} ${r * 0.9} 0 0 1 ${x + r} ${y - 4}`}
+        className={matched ? MATCH_STROKE : "stroke-zinc-400 dark:stroke-zinc-600"}
+        strokeWidth={3}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <circle
+        cx={x}
+        cy={y}
+        r={r}
+        className={matched ? `${MATCH_FILL} ${MATCH_STROKE}` : `${MISS_FILL} stroke-zinc-300 dark:stroke-zinc-600`}
+        strokeWidth={2}
+      />
+      <circle cx={x - 6} cy={y - 1} r={1.8} className={`fill-current ${FACE_STROKE}`} />
+      <circle cx={x + 6} cy={y - 1} r={1.8} className={`fill-current ${FACE_STROKE}`} />
+      <path
+        d={`M ${x - 6} ${y + 7} Q ${x} ${y + 11} ${x + 6} ${y + 7}`}
+        fill="none"
+        className={FACE_STROKE}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      {matched && (
+        <circle cx={x + r - 4} cy={y - r + 4} r={7} className="fill-emerald-500 dark:fill-emerald-400" />
+      )}
+      {matched && (
+        <path
+          d={`M ${x + r - 7.5} ${y - r + 4} l 2 2 l 3.5 -4`}
+          fill="none"
+          stroke="white"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+    </g>
+  );
+}
+
+// Baby icon: a smaller plain circle with a single curl of hair, seated
+// below its mother slot and joined to wherever it actually landed.
+function BabyIcon({ x, y, matched, label }: { x: number; y: number; matched: boolean; label: number }) {
+  const r = 15;
+  return (
+    <g>
+      <circle
+        cx={x}
+        cy={y}
+        r={r}
+        className={matched ? `${MATCH_FILL} ${MATCH_STROKE}` : `${MISS_FILL} stroke-zinc-300 dark:stroke-zinc-600`}
+        strokeWidth={2}
+      />
+      <path
+        d={`M ${x - 2} ${y - r} q 4 -6 6 0`}
+        fill="none"
+        className={FACE_STROKE}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      <circle cx={x - 4.5} cy={y - 1} r={1.4} className={`fill-current ${FACE_STROKE}`} />
+      <circle cx={x + 4.5} cy={y - 1} r={1.4} className={`fill-current ${FACE_STROKE}`} />
+      <circle cx={x} cy={y + 5} r={1.6} className={`fill-current ${FACE_STROKE}`} />
+      <text
+        x={x}
+        y={y + r + 14}
+        textAnchor="middle"
+        className="fill-zinc-500 dark:fill-zinc-500"
+        fontSize={11}
+      >
+        Baby {label}
+      </text>
+    </g>
+  );
+}
+
+function AssignmentDiagram({ perm }: { perm: number[] }) {
+  const n = perm.length;
+  const slotWidth = 84;
+  const width = Math.max(320, n * slotWidth);
+  const height = 190;
+  const topY = 40;
+  const bottomY = height - 40;
+  const spacing = width / (n + 1);
+  const xFor = (i: number) => spacing * (i + 1);
+
+  return (
+    <div className="overflow-x-auto">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[320px]" role="img">
+        {perm.map((mother, baby) => {
+          const matched = mother === baby;
+          return (
+            <line
+              key={baby}
+              x1={xFor(baby)}
+              y1={bottomY - 15}
+              x2={xFor(mother)}
+              y2={topY + 20}
+              className={matched ? MATCH_STROKE : MISS_STROKE}
+              strokeWidth={matched ? 2.5 : 1.5}
+            />
+          );
+        })}
+        {perm.map((_, i) => (
+          <MotherIcon key={`m${i}`} x={xFor(i)} y={topY} matched={perm[i] === i} label={i + 1} />
+        ))}
+        {perm.map((mother, baby) => (
+          <BabyIcon key={`b${baby}`} x={xFor(baby)} y={bottomY} matched={mother === baby} label={baby + 1} />
+        ))}
+      </svg>
     </div>
   );
 }
@@ -262,28 +373,19 @@ export function RandomBabiesSimulator() {
         </button>
       </div>
 
-      <div className="mt-6 min-h-[92px]">
+      <div className="mt-6 min-h-[190px] rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
         {lastAssignment ? (
           <>
-            <div className="flex flex-wrap gap-2">
-              {lastAssignment.map((mother, baby) => (
-                <BabyChip
-                  key={baby}
-                  babyNum={baby + 1}
-                  motherNum={mother + 1}
-                  match={mother === baby}
-                />
-              ))}
-            </div>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <AssignmentDiagram perm={lastAssignment} />
+            <p className="mt-1 text-center text-sm text-zinc-600 dark:text-zinc-400">
               {countMatches(lastAssignment)} of {numBabies} babies went home
-              with their own mother that time.
+              with their own mother that time — green lines mark a match.
             </p>
           </>
         ) : (
-          <span className="text-sm text-zinc-500 dark:text-zinc-500">
+          <div className="flex h-[190px] items-center justify-center text-sm text-zinc-500 dark:text-zinc-500">
             Shuffle the babies to begin
-          </span>
+          </div>
         )}
       </div>
 
