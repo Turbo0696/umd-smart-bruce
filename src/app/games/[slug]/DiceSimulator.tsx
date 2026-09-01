@@ -77,6 +77,45 @@ function Die({ value, size = 64 }: { value: number; size?: number }) {
   );
 }
 
+// Briefly flickers through random faces before settling on the real
+// result, and re-plays a CSS tumble on every new roll (keyed by rollId
+// so the animation restarts even if the value repeats). `stagger` gives
+// each die in a multi-die roll a slightly offset start, so they don't
+// all freeze in perfect lockstep.
+function AnimatedDie({
+  value,
+  rollId,
+  stagger = 0,
+  size = 64,
+}: {
+  value: number;
+  rollId: number;
+  stagger?: number;
+  size?: number;
+}) {
+  const [display, setDisplay] = useState(value);
+
+  useEffect(() => {
+    const frameDelay = 40;
+    const frameCount = 4;
+    const timers = Array.from({ length: frameCount }, (_, frame) =>
+      setTimeout(
+        () => {
+          setDisplay(frame === frameCount - 1 ? value : Math.floor(Math.random() * 6) + 1);
+        },
+        stagger + frame * frameDelay,
+      ),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [rollId, value, stagger]);
+
+  return (
+    <div key={rollId} className="animate-[dice-tumble_0.4s_ease-out]">
+      <Die value={display} size={size} />
+    </div>
+  );
+}
+
 const SPEEDS = [
   { label: "slow", delay: 500 },
   { label: "medium", delay: 100 },
@@ -296,7 +335,7 @@ export function DiceSimulator() {
         {lastRoll ? (
           <>
             {lastRoll.map((v, i) => (
-              <Die key={i} value={v} />
+              <AnimatedDie key={i} value={v} rollId={totalRolls} stagger={i * 50} />
             ))}
             <div className="ml-3">
               <p className="text-xs text-zinc-500 dark:text-zinc-500">Sum</p>
