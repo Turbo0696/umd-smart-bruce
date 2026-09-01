@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SMART Hub | Decision Sciences & Supply Chain Management",
+  title: "Bruce, the smart goose | Decision Sciences & Supply Chain Management",
   description:
     "A bulletin board, simulation games, and AI tutors for Decision Sciences and Supply Chain Management courses.",
 };
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <header className="border-b border-zinc-200">
           <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
             <Link href="/" className="text-lg font-semibold tracking-tight">
-              SMART Hub
+              Bruce, the smart goose
             </Link>
             <div className="flex gap-6 text-sm font-medium text-zinc-600">
               <Link href="/topics" className="hover:text-zinc-900">
@@ -52,8 +52,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </header>
         <main className="flex flex-1 flex-col">{children}</main>
         <footer className="border-t border-zinc-200 py-6 text-center text-sm text-zinc-500">
-          SMART Hub — built for Decision Sciences &amp; Supply Chain
-          Management courses.
+          Bruce, the smart goose — built for Decision Sciences &amp; Supply
+          Chain Management courses.
         </footer>
       </body>
     </html>

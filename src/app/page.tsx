@@ -10,8 +10,9 @@ export default function Home() {
             Meet Bruce, your course guide
           </h1>
           <p className="max-w-md text-lg text-zinc-600">
-            SMART Hub brings together course announcements, simulation games,
-            and AI tutors for Decision Sciences and Supply Chain Management.
+            Bruce, the smart goose, brings together course announcements,
+            simulation games, and AI tutors for Decision Sciences and Supply
+            Chain Management.
           </p>
           <div className="flex gap-3 pt-2">
             <Link
