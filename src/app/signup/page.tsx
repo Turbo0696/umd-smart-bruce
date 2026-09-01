@@ -22,7 +22,9 @@ export default function SignupPage() {
       password,
       options: {
         emailRedirectTo:
-          typeof window !== "undefined" ? window.location.origin : undefined,
+          typeof window !== "undefined"
+            ? `${window.location.origin}/auth/confirm`
+            : undefined,
       },
     });
 
