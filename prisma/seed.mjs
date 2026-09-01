@@ -51,4 +51,26 @@ await prisma.game.upsert({
 });
 console.log("Seeded game: beer-game");
 
+const decisionSciences = await prisma.topic.findUniqueOrThrow({
+  where: { slug: "decision-sciences" },
+});
+
+await prisma.game.upsert({
+  where: { slug: "newsvendor" },
+  update: {
+    name: "Newsvendor Game",
+    description:
+      "The classic single-period inventory decision under demand uncertainty: order too little and miss sales, order too much and eat the leftovers.",
+    topicId: decisionSciences.id,
+  },
+  create: {
+    slug: "newsvendor",
+    name: "Newsvendor Game",
+    description:
+      "The classic single-period inventory decision under demand uncertainty: order too little and miss sales, order too much and eat the leftovers.",
+    topicId: decisionSciences.id,
+  },
+});
+console.log("Seeded game: newsvendor");
+
 await prisma.$disconnect();

@@ -20,12 +20,14 @@ model Profile {
   role      Role     @default(STUDENT)
   createdAt DateTime @default(now())
 
-  posts        Post[]
-  enrollments  Enrollment[]
-  courses      Course[]          @relation("CourseInstructor")
-  gameSessions GameSession[]     @relation("GameSessionInstructor")
-  participant  GameParticipant[]
-  chats        ChatMessage[]
+  posts                  Post[]
+  enrollments            Enrollment[]
+  courses                Course[]                 @relation("CourseInstructor")
+  gameSessions           GameSession[]            @relation("GameSessionInstructor")
+  participant            GameParticipant[]
+  newsvendorSessions     NewsvendorSession[]       @relation("NewsvendorSessionInstructor")
+  newsvendorParticipant  NewsvendorParticipant[]
+  chats                  ChatMessage[]
 }
 
 model Topic {
@@ -89,7 +91,8 @@ model Game {
   topicId     String
   description String?
 
-  sessions GameSession[]
+  sessions           GameSession[]
+  newsvendorSessions NewsvendorSession[]
 }
 
 enum SessionStatus {
@@ -167,6 +170,82 @@ model PendingOrder {
   session       GameSession     @relation(fields: [sessionId], references: [id])
   sessionId     String
   participant   GameParticipant @relation(fields: [participantId], references: [id])
+  participantId String
+  round         Int
+  amount        Int
+
+  @@unique([participantId, round])
+}
+
+// --- Newsvendor game (Decision Sciences) ---
+// Parallel to the Beer Game's tables above rather than sharing them: no
+// fixed roles, any number of players, and every round draws a single
+// shared demand value applied identically to all participants.
+
+model NewsvendorSession {
+  id           String        @id @default(uuid())
+  game         Game          @relation(fields: [gameId], references: [id])
+  gameId       String
+  instructor   Profile       @relation("NewsvendorSessionInstructor", fields: [instructorId], references: [id])
+  instructorId String
+  joinCode     String        @unique
+  status       SessionStatus @default(PENDING)
+  currentRound Int           @default(1)
+  totalRounds  Int           @default(8)
+  price        Float         @default(5)
+  cost         Float         @default(2)
+  salvage      Float         @default(0)
+  demandMin    Int           @default(10)
+  demandMax    Int           @default(50)
+  createdAt    DateTime      @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  participants  NewsvendorParticipant[]
+  results       NewsvendorRoundResult[]
+  pendingOrders NewsvendorPendingOrder[]
+}
+
+model NewsvendorParticipant {
+  id        String            @id @default(uuid())
+  session   NewsvendorSession @relation(fields: [sessionId], references: [id])
+  sessionId String
+  user      Profile           @relation(fields: [userId], references: [id])
+  userId    String
+  joinedAt  DateTime          @default(now())
+
+  results       NewsvendorRoundResult[]
+  pendingOrders NewsvendorPendingOrder[]
+
+  @@unique([sessionId, userId])
+}
+
+model NewsvendorRoundResult {
+  id            String                @id @default(uuid())
+  session       NewsvendorSession     @relation(fields: [sessionId], references: [id])
+  sessionId     String
+  participant   NewsvendorParticipant @relation(fields: [participantId], references: [id])
+  participantId String
+  round         Int
+  orderQty      Int
+  demand        Int
+  sold          Int
+  leftover      Int
+  shortage      Int
+  profit        Float
+
+  @@unique([participantId, round])
+}
+
+// Same staging pattern as the Beer Game's PendingOrder: an order sits
+// here until every current participant has one in for the round, then
+// the engine draws demand once and resolves everyone into
+// NewsvendorRoundResult rows.
+model NewsvendorPendingOrder {
+  id            String                @id @default(uuid())
+  session       NewsvendorSession     @relation(fields: [sessionId], references: [id])
+  sessionId     String
+  participant   NewsvendorParticipant @relation(fields: [participantId], references: [id])
   participantId String
   round         Int
   amount        Int
