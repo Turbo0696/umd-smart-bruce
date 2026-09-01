@@ -20,15 +20,16 @@ model Profile {
   role      Role     @default(STUDENT)
   createdAt DateTime @default(now())
 
-  posts                  Post[]
-  enrollments            Enrollment[]
-  courses                Course[]                 @relation("CourseInstructor")
-  gameSessions           GameSession[]            @relation("GameSessionInstructor")
-  participant            GameParticipant[]
-  newsvendorSessions     NewsvendorSession[]       @relation("NewsvendorSessionInstructor")
-  newsvendorParticipant  NewsvendorParticipant[]
-  forecastingAttempts    ForecastingAttempt[]
-  chats                  ChatMessage[]
+  posts                    Post[]
+  enrollments              Enrollment[]
+  courses                  Course[]                 @relation("CourseInstructor")
+  gameSessions             GameSession[]            @relation("GameSessionInstructor")
+  participant              GameParticipant[]
+  newsvendorSessions       NewsvendorSession[]       @relation("NewsvendorSessionInstructor")
+  newsvendorParticipant    NewsvendorParticipant[]
+  forecastingAttempts      ForecastingAttempt[]
+  soloNewsvendorAttempts   SoloNewsvendorAttempt[]
+  chats                    ChatMessage[]
 }
 
 model Topic {
@@ -279,6 +280,27 @@ model ForecastingAttempt {
   percentError    Float
   score           Int
   createdAt       DateTime       @default(now())
+}
+
+// --- Newsvendor Practice (single-player, Decision Sciences) ---
+// A solo variant of the multiplayer NewsvendorSession above, reusing the
+// same engine (src/lib/newsvendor.ts) but with no session/join-code —
+// each round is independent. Unlike ForecastingAttempt, demand here is
+// randomly drawn per round rather than a public formula, so it's drawn
+// server-side (see newsvendor-solo-actions.ts) rather than client-side.
+
+model SoloNewsvendorAttempt {
+  id           String   @id @default(uuid())
+  user         Profile  @relation(fields: [userId], references: [id])
+  userId       String
+  scenarioSlug String
+  orderQty     Int
+  demand       Int
+  sold         Int
+  leftover     Int
+  shortage     Int
+  profit       Float
+  createdAt    DateTime @default(now())
 }
 
 // --- Phase 5: AI tutor chatbots ---

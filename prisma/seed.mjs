@@ -91,4 +91,22 @@ await prisma.game.upsert({
 });
 console.log("Seeded game: forecasting");
 
+await prisma.game.upsert({
+  where: { slug: "newsvendor-solo" },
+  update: {
+    name: "Newsvendor Practice",
+    description:
+      "Single-player: decide how much to order before demand is known, across a few different scenarios, and track your average profit over time.",
+    topicId: decisionSciences.id,
+  },
+  create: {
+    slug: "newsvendor-solo",
+    name: "Newsvendor Practice",
+    description:
+      "Single-player: decide how much to order before demand is known, across a few different scenarios, and track your average profit over time.",
+    topicId: decisionSciences.id,
+  },
+});
+console.log("Seeded game: newsvendor-solo");
+
 await prisma.$disconnect();

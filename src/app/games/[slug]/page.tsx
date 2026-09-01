@@ -3,9 +3,11 @@ import { getCurrentProfile } from "@/lib/auth";
 import type { ForecastMethod } from "@/lib/forecasting";
 import { METHOD_ORDER } from "@/lib/forecasting";
 import { prisma } from "@/lib/prisma";
+import { NEWSVENDOR_SCENARIOS } from "@/lib/newsvendorScenarios";
 import { BeerGameLanding } from "./BeerGameLanding";
 import { ForecastingGame } from "./ForecastingGame";
 import { NewsvendorLanding } from "./NewsvendorLanding";
+import { NewsvendorSoloGame } from "./NewsvendorSoloGame";
 
 export default async function GamePage(props: PageProps<"/games/[slug]">) {
   const { slug } = await props.params;
@@ -74,6 +76,58 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
 
     return (
       <ForecastingGame isLoggedIn={!!profile} stats={stats} classStats={classStats} />
+    );
+  }
+  if (slug === "newsvendor-solo") {
+    const canSeeClass = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
+
+    const [ownAttempts, allAttempts] = await Promise.all([
+      profile
+        ? prisma.soloNewsvendorAttempt.findMany({ where: { userId: profile.id } })
+        : Promise.resolve([]),
+      canSeeClass
+        ? prisma.soloNewsvendorAttempt.findMany({ include: { user: true } })
+        : Promise.resolve(null),
+    ]);
+
+    const stats = profile
+      ? {
+          rounds: ownAttempts.length,
+          avgProfit: average(ownAttempts.map((a) => a.profit)),
+          byScenario: NEWSVENDOR_SCENARIOS.map((scenario) => {
+            const rows = ownAttempts.filter((a) => a.scenarioSlug === scenario.slug);
+            return {
+              scenarioSlug: scenario.slug,
+              rounds: rows.length,
+              avgProfit: average(rows.map((a) => a.profit)),
+            };
+          }).filter((s) => s.rounds > 0),
+        }
+      : null;
+
+    const classStats = allAttempts
+      ? Object.values(
+          allAttempts.reduce<
+            Record<string, { userId: string; name: string; profits: number[] }>
+          >((acc, a) => {
+            acc[a.userId] ??= {
+              userId: a.userId,
+              name: a.user.name ?? a.user.email,
+              profits: [],
+            };
+            acc[a.userId].profits.push(a.profit);
+            return acc;
+          }, {}),
+        ).map((row) => ({
+          userId: row.userId,
+          name: row.name,
+          rounds: row.profits.length,
+          avgProfit: average(row.profits),
+        }))
+      : null;
+
+    return (
+      <NewsvendorSoloGame isLoggedIn={!!profile} stats={stats} classStats={classStats} />
     );
   }
 
