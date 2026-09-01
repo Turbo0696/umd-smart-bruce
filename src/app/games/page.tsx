@@ -1,7 +1,24 @@
+import type { ComponentType } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import type { GameCategory } from "@prisma/client";
+import {
+  BabyFaceIcon,
+  BeerMugIcon,
+  DiceIcon,
+  NewspaperIcon,
+  TrendChartIcon,
+} from "@/components/GameIcons";
+
+const GAME_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  "dice-simulator": DiceIcon,
+  "random-babies": BabyFaceIcon,
+  "beer-game": BeerMugIcon,
+  newsvendor: NewspaperIcon,
+  "newsvendor-solo": NewspaperIcon,
+  forecasting: TrendChartIcon,
+};
 
 const SECTIONS: { category: GameCategory; title: string; blurb: string }[] = [
   {
@@ -50,20 +67,26 @@ export default async function GamesPage() {
               {blurb}
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {inSection.map((game) => (
-                <Link
-                  key={game.slug}
-                  href={`/games/${game.slug}`}
-                  className="rounded-lg border border-zinc-200 p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
-                >
-                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                    {game.name}
-                  </h3>
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    {game.description}
-                  </p>
-                </Link>
-              ))}
+              {inSection.map((game) => {
+                const Icon = GAME_ICONS[game.slug];
+                return (
+                  <Link
+                    key={game.slug}
+                    href={`/games/${game.slug}`}
+                    className="flex items-start justify-between gap-4 rounded-lg border border-zinc-200 p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
+                  >
+                    <div>
+                      <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                        {game.name}
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                        {game.description}
+                      </p>
+                    </div>
+                    {Icon && <Icon />}
+                  </Link>
+                );
+              })}
             </div>
           </section>
         );

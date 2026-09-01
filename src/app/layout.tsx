@@ -87,8 +87,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             width={28}
             height={28}
           />
-          Bruce, the smart goose — built for Decision Sciences &amp; Supply
-          Chain Management courses.
+          Bruce, the smart goose — built for University of Michigan-Dearborn
+          College of Business.
         </footer>
       </body>
     </html>
