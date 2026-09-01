@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { topics } from "@/lib/topics";
+import { listTopics } from "@/lib/topics";
 
-export default function TopicsPage() {
+export default async function TopicsPage() {
+  const topics = await listTopics();
+
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Topics</h1>

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { SignOutButton } from "@/components/SignOutButton";
+import { getCurrentProfile } from "@/lib/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,7 +21,9 @@ export const metadata: Metadata = {
     "A bulletin board, simulation games, and AI tutors for Decision Sciences and Supply Chain Management courses.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const profile = await getCurrentProfile();
+
   return (
     <html
       lang="en"
@@ -47,6 +51,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               >
                 Supply Chain Management
               </Link>
+              {profile ? (
+                <div className="flex items-center gap-4">
+                  <span className="text-zinc-400">
+                    {profile.name ?? profile.email}
+                  </span>
+                  <SignOutButton />
+                </div>
+              ) : (
+                <Link href="/login" className="hover:text-zinc-900">
+                  Log in
+                </Link>
+              )}
             </div>
           </nav>
         </header>

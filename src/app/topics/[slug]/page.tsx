@@ -1,29 +1,66 @@
 import { notFound } from "next/navigation";
-import { getTopic, topics } from "@/lib/topics";
+import { getCurrentProfile } from "@/lib/auth";
+import { getTopicWithPosts } from "@/lib/topics";
+import { createPost } from "./actions";
 
-export function generateStaticParams() {
-  return topics.map((topic) => ({ slug: topic.slug }));
-}
-
-export default async function TopicPage(
-  props: PageProps<"/topics/[slug]">,
-) {
+export default async function TopicPage(props: PageProps<"/topics/[slug]">) {
   const { slug } = await props.params;
-  const topic = getTopic(slug);
+  const [topic, profile] = await Promise.all([
+    getTopicWithPosts(slug),
+    getCurrentProfile(),
+  ]);
 
   if (!topic) {
     notFound();
   }
+
+  const canPost = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
+  const createPostForTopic = createPost.bind(null, slug);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-12">
       <h1 className="text-2xl font-semibold text-zinc-900">{topic.name}</h1>
       <p className="mt-2 text-zinc-600">{topic.description}</p>
 
+      {canPost && (
+        <form
+          action={createPostForTopic}
+          className="mt-8 flex flex-col gap-3 rounded-lg border border-zinc-200 p-5"
+        >
+          <h2 className="font-semibold text-zinc-900">New post</h2>
+          <input
+            name="title"
+            placeholder="Title"
+            required
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          />
+          <textarea
+            name="body"
+            placeholder="Body"
+            required
+            rows={4}
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          />
+          <label className="flex items-center gap-2 text-sm text-zinc-600">
+            <input type="checkbox" name="pinned" />
+            Pin this post
+          </label>
+          <button
+            type="submit"
+            className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+          >
+            Post
+          </button>
+        </form>
+      )}
+
       <div className="mt-8 flex flex-col gap-4">
+        {topic.posts.length === 0 && (
+          <p className="text-sm text-zinc-500">No posts yet.</p>
+        )}
         {topic.posts.map((post) => (
           <article
-            key={post.slug}
+            key={post.id}
             className="rounded-lg border border-zinc-200 p-5"
           >
             <div className="flex items-center justify-between">
@@ -34,8 +71,13 @@ export default async function TopicPage(
                 </span>
               )}
             </div>
-            <p className="mt-1 text-xs text-zinc-500">{post.date}</p>
-            <p className="mt-3 text-sm text-zinc-700">{post.body}</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {post.author.name ?? post.author.email} ·{" "}
+              {post.createdAt.toLocaleDateString()}
+            </p>
+            <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-700">
+              {post.body}
+            </p>
           </article>
         ))}
       </div>

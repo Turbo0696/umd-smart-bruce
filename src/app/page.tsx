@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { topics } from "@/lib/topics";
+import { listTopics } from "@/lib/topics";
 
-export default function Home() {
+export default async function Home() {
+  const topics = await listTopics();
+
   return (
     <div className="flex flex-1 flex-col">
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-16 md:flex-row md:items-center">
