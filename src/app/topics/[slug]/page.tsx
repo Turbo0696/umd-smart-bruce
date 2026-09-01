@@ -1,7 +1,13 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { getCurrentProfile } from "@/lib/auth";
 import { getTopicWithPosts } from "@/lib/topics";
 import { createPost } from "./actions";
+
+const TOPIC_BANNERS: Record<string, string> = {
+  "decision-sciences": "/images/bruce-campus-banner.png",
+  "supply-chain-management": "/images/bruce-scm-badge.png",
+};
 
 export default async function TopicPage(props: PageProps<"/topics/[slug]">) {
   const { slug } = await props.params;
@@ -16,9 +22,20 @@ export default async function TopicPage(props: PageProps<"/topics/[slug]">) {
 
   const canPost = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
   const createPostForTopic = createPost.bind(null, slug);
+  const banner = TOPIC_BANNERS[slug];
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-12">
+      {banner && (
+        <Image
+          src={banner}
+          alt=""
+          width={700}
+          height={330}
+          className="mb-6 w-full max-w-xs rounded-lg"
+          priority
+        />
+      )}
       <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
         {topic.name}
       </h1>
