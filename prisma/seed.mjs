@@ -137,4 +137,24 @@ await prisma.game.upsert({
 });
 console.log("Seeded game: dice-simulator");
 
+await prisma.game.upsert({
+  where: { slug: "random-babies" },
+  update: {
+    name: "Random Babies",
+    description:
+      "A classic matching-problem simulation: babies are randomly returned to mothers, and you watch the distribution of correct matches — the average is always 1, no matter how many babies.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+  create: {
+    slug: "random-babies",
+    name: "Random Babies",
+    description:
+      "A classic matching-problem simulation: babies are randomly returned to mothers, and you watch the distribution of correct matches — the average is always 1, no matter how many babies.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+});
+console.log("Seeded game: random-babies");
+
 await prisma.$disconnect();

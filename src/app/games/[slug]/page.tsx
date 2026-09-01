@@ -9,6 +9,7 @@ import { DiceSimulator } from "./DiceSimulator";
 import { ForecastingGame } from "./ForecastingGame";
 import { NewsvendorLanding } from "./NewsvendorLanding";
 import { NewsvendorSoloGame } from "./NewsvendorSoloGame";
+import { RandomBabiesSimulator } from "./RandomBabiesSimulator";
 
 export default async function GamePage(props: PageProps<"/games/[slug]">) {
   const { slug } = await props.params;
@@ -133,6 +134,9 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
   }
   if (slug === "dice-simulator") {
     return <DiceSimulator />;
+  }
+  if (slug === "random-babies") {
+    return <RandomBabiesSimulator />;
   }
 
   notFound();
