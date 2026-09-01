@@ -59,7 +59,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 href="/games"
                 className="hover:text-zinc-900 dark:hover:text-zinc-50"
               >
-                Games
+                Simulations &amp; games
               </Link>
               {profile ? (
                 <div className="flex items-center gap-4">

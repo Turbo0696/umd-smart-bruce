@@ -5,6 +5,7 @@ import { METHOD_ORDER } from "@/lib/forecasting";
 import { prisma } from "@/lib/prisma";
 import { NEWSVENDOR_SCENARIOS } from "@/lib/newsvendorScenarios";
 import { BeerGameLanding } from "./BeerGameLanding";
+import { DiceSimulator } from "./DiceSimulator";
 import { ForecastingGame } from "./ForecastingGame";
 import { NewsvendorLanding } from "./NewsvendorLanding";
 import { NewsvendorSoloGame } from "./NewsvendorSoloGame";
@@ -129,6 +130,9 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
     return (
       <NewsvendorSoloGame isLoggedIn={!!profile} stats={stats} classStats={classStats} />
     );
+  }
+  if (slug === "dice-simulator") {
+    return <DiceSimulator />;
   }
 
   notFound();

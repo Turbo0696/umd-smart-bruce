@@ -40,6 +40,7 @@ await prisma.game.upsert({
     description:
       "The classic MIT supply-chain simulation: 4 roles, weekly orders under shipment delay, and the bullwhip effect.",
     topicId: scm.id,
+    category: "MULTI_PLAYER",
   },
   create: {
     slug: "beer-game",
@@ -47,6 +48,7 @@ await prisma.game.upsert({
     description:
       "The classic MIT supply-chain simulation: 4 roles, weekly orders under shipment delay, and the bullwhip effect.",
     topicId: scm.id,
+    category: "MULTI_PLAYER",
   },
 });
 console.log("Seeded game: beer-game");
@@ -62,6 +64,7 @@ await prisma.game.upsert({
     description:
       "The classic single-period inventory decision under demand uncertainty: order too little and miss sales, order too much and eat the leftovers.",
     topicId: decisionSciences.id,
+    category: "MULTI_PLAYER",
   },
   create: {
     slug: "newsvendor",
@@ -69,6 +72,7 @@ await prisma.game.upsert({
     description:
       "The classic single-period inventory decision under demand uncertainty: order too little and miss sales, order too much and eat the leftovers.",
     topicId: decisionSciences.id,
+    category: "MULTI_PLAYER",
   },
 });
 console.log("Seeded game: newsvendor");
@@ -80,6 +84,7 @@ await prisma.game.upsert({
     description:
       "Single-player practice: compute a forecast by hand using standard methods (moving averages, exponential smoothing, trend regression), then check your work.",
     topicId: decisionSciences.id,
+    category: "SINGLE_PLAYER",
   },
   create: {
     slug: "forecasting",
@@ -87,6 +92,7 @@ await prisma.game.upsert({
     description:
       "Single-player practice: compute a forecast by hand using standard methods (moving averages, exponential smoothing, trend regression), then check your work.",
     topicId: decisionSciences.id,
+    category: "SINGLE_PLAYER",
   },
 });
 console.log("Seeded game: forecasting");
@@ -98,6 +104,7 @@ await prisma.game.upsert({
     description:
       "Single-player: decide how much to order before demand is known, across a few different scenarios, and track your average profit over time.",
     topicId: decisionSciences.id,
+    category: "SINGLE_PLAYER",
   },
   create: {
     slug: "newsvendor-solo",
@@ -105,8 +112,29 @@ await prisma.game.upsert({
     description:
       "Single-player: decide how much to order before demand is known, across a few different scenarios, and track your average profit over time.",
     topicId: decisionSciences.id,
+    category: "SINGLE_PLAYER",
   },
 });
 console.log("Seeded game: newsvendor-solo");
+
+await prisma.game.upsert({
+  where: { slug: "dice-simulator" },
+  update: {
+    name: "Dice Simulator",
+    description:
+      "Roll one, two, or three dice — once or thousands of times — and watch the distribution of sums converge, a hands-on look at the law of large numbers.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+  create: {
+    slug: "dice-simulator",
+    name: "Dice Simulator",
+    description:
+      "Roll one, two, or three dice — once or thousands of times — and watch the distribution of sums converge, a hands-on look at the law of large numbers.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+});
+console.log("Seeded game: dice-simulator");
 
 await prisma.$disconnect();
