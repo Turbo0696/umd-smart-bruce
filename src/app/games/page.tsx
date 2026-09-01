@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
@@ -6,6 +7,14 @@ export default async function GamesPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
+      <Image
+        src="/images/bruce-campus-banner.png"
+        alt="Bruce the Goose, UM-Dearborn campus mascot"
+        width={900}
+        height={430}
+        className="mb-6 w-full max-w-md rounded-lg"
+        priority
+      />
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
         Simulation games
       </h1>
