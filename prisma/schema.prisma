@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+// Mirrors a Supabase auth.users row (id = auth user id) with app-level fields.
+model Profile {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+
+  posts       Post[]
+  enrollments Enrollment[]
+  courses     Course[]        @relation("CourseInstructor")
+  participant GameParticipant[]
+  chats       ChatMessage[]
+}
+
+model Topic {
+  id          String  @id @default(uuid())
+  slug        String  @unique
+  name        String
+  description String?
+
+  posts       Post[]
+  courses     Course[]
+  games       Game[]
+  tutorTopics TutorTopic[]
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  topic     Topic    @relation(fields: [topicId], references: [id])
+  topicId   String
+  author    Profile  @relation(fields: [authorId], references: [id])
+  authorId  String
+  title     String
+  body      String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// --- Phase 3: courses & enrollment ---
+
+model Course {
+  id           String   @id @default(uuid())
+  name         String
+  term         String
+  topic        Topic    @relation(fields: [topicId], references: [id])
+  topicId      String
+  instructor   Profile  @relation("CourseInstructor", fields: [instructorId], references: [id])
+  instructorId String
+  joinCode     String   @unique
+  createdAt    DateTime @default(now())
+
+  enrollments  Enrollment[]
+  gameSessions GameSession[]
+}
+
+model Enrollment {
+  id       String  @id @default(uuid())
+  course   Course  @relation(fields: [courseId], references: [id])
+  courseId String
+  user     Profile @relation(fields: [userId], references: [id])
+  userId   String
+
+  @@unique([courseId, userId])
+}
+
+// --- Phase 4: simulation games (Beer Game etc.) ---
+
+model Game {
+  id          String  @id @default(uuid())
+  slug        String  @unique
+  name        String
+  topic       Topic   @relation(fields: [topicId], references: [id])
+  topicId     String
+  description String?
+
+  sessions GameSession[]
+}
+
+enum SessionStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+}
+
+model GameSession {
+  id           String        @id @default(uuid())
+  game         Game          @relation(fields: [gameId], references: [id])
+  gameId       String
+  course       Course        @relation(fields: [courseId], references: [id])
+  courseId     String
+  status       SessionStatus @default(PENDING)
+  currentRound Int           @default(0)
+  config       Json?
+  createdAt    DateTime      @default(now())
+
+  participants GameParticipant[]
+  roundStates  GameRoundState[]
+}
+
+enum BeerGameRole {
+  RETAILER
+  WHOLESALER
+  DISTRIBUTOR
+  FACTORY
+}
+
+model GameParticipant {
+  id        String       @id @default(uuid())
+  session   GameSession  @relation(fields: [sessionId], references: [id])
+  sessionId String
+  user      Profile      @relation(fields: [userId], references: [id])
+  userId    String
+  role      BeerGameRole
+
+  roundStates GameRoundState[]
+
+  @@unique([sessionId, userId])
+}
+
+model GameRoundState {
+  id             String          @id @default(uuid())
+  session        GameSession     @relation(fields: [sessionId], references: [id])
+  sessionId      String
+  participant    GameParticipant @relation(fields: [participantId], references: [id])
+  participantId  String
+  round          Int
+  inventory      Int
+  backlog        Int
+  incomingOrder  Int
+  outgoingOrder  Int
+  cost           Float
+
+  @@unique([participantId, round])
+}
+
+// --- Phase 5: AI tutor chatbots ---
+
+model TutorTopic {
+  id           String  @id @default(uuid())
+  topic        Topic   @relation(fields: [topicId], references: [id])
+  topicId      String
+  name         String
+  systemPrompt String
+
+  messages ChatMessage[]
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model ChatMessage {
+  id           String     @id @default(uuid())
+  tutorTopic   TutorTopic @relation(fields: [tutorTopicId], references: [id])
+  tutorTopicId String
+  user         Profile    @relation(fields: [userId], references: [id])
+  userId       String
+  role         ChatRole
+  content      String
+  createdAt    DateTime   @default(now())
+}
