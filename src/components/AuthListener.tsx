@@ -1,29 +1,40 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-// Merely constructing the browser client triggers Supabase's
-// detectSessionInUrl handling, which picks up an implicit-flow session
-// (#access_token=...) if one is present in the URL — covering email
-// confirmation links that don't use PKCE's ?code= param, which the
-// server-side /auth/confirm route handles instead. Once a session
-// lands, refresh so server components (e.g. the nav) pick it up.
+// @supabase/ssr's browser client hardcodes flowType: "pkce", which makes
+// its built-in detectSessionInUrl *reject* an implicit-flow callback
+// (#access_token=... in the hash) instead of processing it — Supabase's
+// admin-generated links (and possibly some email templates) use that
+// implicit style. So we parse the hash ourselves and apply it via
+// setSession(), which has no such flowType guard. PKCE links (?code=)
+// are handled separately, server-side, by /auth/confirm.
+//
+// A full reload (not router.refresh()) is used afterward: the new
+// session cookie is readable by the server on a fresh navigation, but
+// router.refresh()'s soft refresh was observed to race ahead of the
+// cookie write and miss it. This only runs once, right after landing
+// from an email link, so a hard reload is an acceptable trade-off.
 export function AuthListener() {
-  const router = useRouter();
-
   useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.includes("access_token")) return;
+
+    const params = new URLSearchParams(hash.slice(1));
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (!access_token || !refresh_token) return;
+
     const supabase = createClient();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-        router.refresh();
+    supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+      if (error) {
+        console.error("[AuthListener] setSession failed:", error.message);
+        return;
       }
+      window.location.replace(window.location.pathname + window.location.search);
     });
-    return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
   return null;
 }
