@@ -12,7 +12,6 @@ import { prisma } from "@/lib/prisma";
 // curious student could inspect it before submitting.
 export async function playRound(scenarioSlug: string, orderQty: number) {
   const profile = await getCurrentProfile();
-  if (!profile) throw new Error("You must be logged in to play.");
 
   if (!Number.isInteger(orderQty) || orderQty < 0) {
     throw new Error("Order must be a non-negative whole number.");
@@ -24,20 +23,25 @@ export async function playRound(scenarioSlug: string, orderQty: number) {
   const demand = drawDemand(scenario);
   const result = resolveOrder(orderQty, demand, scenario);
 
-  await prisma.soloNewsvendorAttempt.create({
-    data: {
-      userId: profile.id,
-      scenarioSlug,
-      orderQty,
-      demand: result.demand,
-      sold: result.sold,
-      leftover: result.leftover,
-      shortage: result.shortage,
-      profit: result.profit,
-    },
-  });
+  // Guests can still play (demand is always drawn server-side above,
+  // regardless of login) — only logged-in rounds get persisted, matching
+  // the "log in to save your progress" hint shown in the UI.
+  if (profile) {
+    await prisma.soloNewsvendorAttempt.create({
+      data: {
+        userId: profile.id,
+        scenarioSlug,
+        orderQty,
+        demand: result.demand,
+        sold: result.sold,
+        leftover: result.leftover,
+        shortage: result.shortage,
+        profit: result.profit,
+      },
+    });
 
-  revalidatePath("/games/newsvendor-solo");
+    revalidatePath("/games/newsvendor-solo");
+  }
 
   return result;
 }
