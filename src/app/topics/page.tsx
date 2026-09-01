@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { listTopics } from "@/lib/topics";
 
@@ -6,6 +7,14 @@ export default async function TopicsPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
+      <Image
+        src="/images/bruce-seal.png"
+        alt="Bruce the Goose seal, est. 1959"
+        width={600}
+        height={542}
+        className="mb-6 h-auto w-28"
+        priority
+      />
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
         Topics
       </h1>

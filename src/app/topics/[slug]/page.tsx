@@ -4,9 +4,19 @@ import { getCurrentProfile } from "@/lib/auth";
 import { getTopicWithPosts } from "@/lib/topics";
 import { createPost } from "./actions";
 
-const TOPIC_BANNERS: Record<string, string> = {
-  "decision-sciences": "/images/bruce-campus-banner.png",
-  "supply-chain-management": "/images/bruce-scm-badge.png",
+// width/height must match each file's real aspect ratio, or the layout
+// reserves the wrong shape and leaves visible empty space around it.
+const TOPIC_BANNERS: Record<string, { src: string; width: number; height: number }> = {
+  "decision-sciences": {
+    src: "/images/bruce-ds-badge.png",
+    width: 900,
+    height: 453,
+  },
+  "supply-chain-management": {
+    src: "/images/bruce-campus-banner.png",
+    width: 900,
+    height: 407,
+  },
 };
 
 export default async function TopicPage(props: PageProps<"/topics/[slug]">) {
@@ -28,11 +38,11 @@ export default async function TopicPage(props: PageProps<"/topics/[slug]">) {
     <div className="mx-auto w-full max-w-3xl px-6 py-12">
       {banner && (
         <Image
-          src={banner}
+          src={banner.src}
           alt=""
-          width={700}
-          height={330}
-          className="mb-6 w-full max-w-xs rounded-lg"
+          width={banner.width}
+          height={banner.height}
+          className="mb-6 h-auto w-full max-w-xs rounded-lg"
           priority
         />
       )}

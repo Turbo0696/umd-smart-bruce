@@ -11,8 +11,8 @@ export default async function GamesPage() {
         src="/images/bruce-patch.png"
         alt="Dearborn Goose Patrol patch, since 1959"
         width={700}
-        height={330}
-        className="mb-6 w-full max-w-xs rounded-lg"
+        height={321}
+        className="mb-6 h-auto w-full max-w-xs rounded-lg"
         priority
       />
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
