@@ -27,6 +27,7 @@ model Profile {
   participant            GameParticipant[]
   newsvendorSessions     NewsvendorSession[]       @relation("NewsvendorSessionInstructor")
   newsvendorParticipant  NewsvendorParticipant[]
+  forecastingAttempts    ForecastingAttempt[]
   chats                  ChatMessage[]
 }
 
@@ -251,6 +252,33 @@ model NewsvendorPendingOrder {
   amount        Int
 
   @@unique([participantId, round])
+}
+
+// --- Forecasting practice game (Decision Sciences) ---
+// Single-player, no session/join-code — open-ended practice. Correctness
+// is computed client-side from the (non-secret, formula-based) engine in
+// src/lib/forecasting.ts; each row here is just a logged attempt for the
+// student's own history and, for instructors, a class-wide view.
+
+enum ForecastMethod {
+  SMA3
+  SMA4
+  WMA
+  EXP_SMOOTHING
+  LINEAR_REGRESSION
+}
+
+model ForecastingAttempt {
+  id              String         @id @default(uuid())
+  user            Profile        @relation(fields: [userId], references: [id])
+  userId          String
+  method          ForecastMethod
+  datasetSlug     String
+  userForecast    Float
+  correctForecast Float
+  percentError    Float
+  score           Int
+  createdAt       DateTime       @default(now())
 }
 
 // --- Phase 5: AI tutor chatbots ---

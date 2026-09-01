@@ -73,4 +73,22 @@ await prisma.game.upsert({
 });
 console.log("Seeded game: newsvendor");
 
+await prisma.game.upsert({
+  where: { slug: "forecasting" },
+  update: {
+    name: "Forecasting Practice",
+    description:
+      "Single-player practice: compute a forecast by hand using standard methods (moving averages, exponential smoothing, trend regression), then check your work.",
+    topicId: decisionSciences.id,
+  },
+  create: {
+    slug: "forecasting",
+    name: "Forecasting Practice",
+    description:
+      "Single-player practice: compute a forecast by hand using standard methods (moving averages, exponential smoothing, trend regression), then check your work.",
+    topicId: decisionSciences.id,
+  },
+});
+console.log("Seeded game: forecasting");
+
 await prisma.$disconnect();
