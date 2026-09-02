@@ -1,9 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [pgvector(map: "vector")]
 }
 
 enum Role {
@@ -72,6 +74,7 @@ model Course {
   enrollments        Enrollment[]
   gameSessions       GameSession[]
   newsvendorSessions NewsvendorSession[]
+  tutorTopics        TutorTopic[]
 }
 
 model Enrollment {
@@ -316,15 +319,63 @@ model SoloNewsvendorAttempt {
 }
 
 // --- Phase 5: AI tutor chatbots ---
+// A tutor binds to either a Topic (open site-wide) or a Course
+// (gated to its roster) — never both, enforced in the create action
+// rather than a DB constraint.
 
 model TutorTopic {
-  id           String  @id @default(uuid())
-  topic        Topic   @relation(fields: [topicId], references: [id])
-  topicId      String
+  id           String   @id @default(uuid())
+  topic        Topic?   @relation(fields: [topicId], references: [id])
+  topicId      String?
+  course       Course?  @relation(fields: [courseId], references: [id])
+  courseId     String?
   name         String
   systemPrompt String
+  createdAt    DateTime @default(now())
 
-  messages ChatMessage[]
+  materials TutorMaterial[]
+  messages  ChatMessage[]
+}
+
+enum MaterialType {
+  TXT
+  DOCX
+  PPTX
+}
+
+enum MaterialStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+// A source document a tutor is grounded in. Text is extracted once on
+// upload, split into MaterialChunk rows, and embedded — chat answers
+// are only allowed to draw on these chunks, not general knowledge.
+model TutorMaterial {
+  id           String         @id @default(uuid())
+  tutorTopic   TutorTopic     @relation(fields: [tutorTopicId], references: [id])
+  tutorTopicId String
+  fileName     String
+  storagePath  String
+  fileType     MaterialType
+  status       MaterialStatus @default(PENDING)
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+
+  chunks MaterialChunk[]
+}
+
+// embedding has no Prisma-native query support (no cosine-distance
+// operator in the query builder) — similarity search is done via
+// $queryRaw using pgvector's `<=>` operator directly.
+model MaterialChunk {
+  id         String                      @id @default(uuid())
+  material   TutorMaterial               @relation(fields: [materialId], references: [id])
+  materialId String
+  chunkIndex Int
+  content    String
+  embedding  Unsupported("vector(1536)")
 }
 
 enum ChatRole {

@@ -31,6 +31,7 @@ export function getCourseById(id: string) {
         include: { game: true, participants: true, results: true },
         orderBy: { createdAt: "desc" },
       },
+      tutorTopics: { orderBy: { createdAt: "desc" } },
     },
   });
 }

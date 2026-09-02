@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentProfile } from "@/lib/auth";
 import { getCourseById } from "@/lib/courses";
+import { createTutorTopic } from "@/app/tutor/actions";
 import { CreateTeamsForm } from "../CreateTeamsForm";
 
 function average(values: number[]): number {
@@ -195,6 +196,55 @@ export default async function CourseDetailPage(props: PageProps<"/courses/[id]">
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+          AI Tutors
+        </h2>
+        {course.tutorTopics.length === 0 ? (
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-500">
+            No tutors for this course yet.
+          </p>
+        ) : (
+          <ul className="mt-2 flex flex-col gap-1">
+            {course.tutorTopics.map((t) => (
+              <li key={t.id}>
+                <Link href={`/tutor/${t.id}`} className="text-sm text-zinc-700 underline dark:text-zinc-300">
+                  {t.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {canManage && (
+          <form
+            action={createTutorTopic}
+            className="mt-4 flex flex-col gap-3 border-t border-zinc-100 pt-4 dark:border-zinc-800"
+          >
+            <input type="hidden" name="courseId" value={course.id} />
+            <input
+              name="name"
+              placeholder="Tutor name (e.g. Bruce the Goose)"
+              required
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder-zinc-500"
+            />
+            <textarea
+              name="systemPrompt"
+              placeholder="System prompt / persona instructions"
+              required
+              rows={6}
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder-zinc-500"
+            />
+            <button
+              type="submit"
+              className="self-start rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+            >
+              Create tutor
+            </button>
+          </form>
         )}
       </div>
     </div>

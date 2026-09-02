@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# local notes with live credentials — never commit
+demo-accounts.md
+
 # vercel
 .vercel
 

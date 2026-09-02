@@ -12,6 +12,7 @@ export function getTopicWithPosts(slug: string) {
         orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
         include: { author: true },
       },
+      tutorTopics: { orderBy: { createdAt: "desc" } },
     },
   });
 }
