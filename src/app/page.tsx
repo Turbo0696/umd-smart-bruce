@@ -1,5 +1,12 @@
+import type { ComponentType } from "react";
 import Link from "next/link";
 import { listTopics } from "@/lib/topics";
+import { DecisionTreeIcon, SupplyChainIcon } from "@/components/TopicIcons";
+
+const TOPIC_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  "decision-sciences": DecisionTreeIcon,
+  "supply-chain-management": SupplyChainIcon,
+};
 
 export default async function Home() {
   const topics = await listTopics();
@@ -22,6 +29,8 @@ export default async function Home() {
             className="w-full rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-800"
             src="/video/bruce-greeting.mp4"
             controls
+            autoPlay
+            muted
             playsInline
             preload="metadata"
           >
@@ -35,20 +44,26 @@ export default async function Home() {
           Topics
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {topics.map((topic) => (
-            <Link
-              key={topic.slug}
-              href={`/topics/${topic.slug}`}
-              className="rounded-lg border border-zinc-200 p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
-            >
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                {topic.name}
-              </h3>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                {topic.description}
-              </p>
-            </Link>
-          ))}
+          {topics.map((topic) => {
+            const Icon = TOPIC_ICONS[topic.slug];
+            return (
+              <Link
+                key={topic.slug}
+                href={`/topics/${topic.slug}`}
+                className="flex items-start justify-between gap-4 rounded-lg border border-zinc-200 p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
+              >
+                <div>
+                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {topic.name}
+                  </h3>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                    {topic.description}
+                  </p>
+                </div>
+                {Icon && <Icon />}
+              </Link>
+            );
+          })}
         </div>
       </section>
     </div>
