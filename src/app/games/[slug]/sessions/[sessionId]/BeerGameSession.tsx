@@ -109,13 +109,16 @@ function PendingView({
   isLoggedIn: boolean;
 }) {
   const full = session.participants.length >= 4;
+  const openRoles = ROLE_ORDER.filter(
+    (role) => !session.participants.some((p) => p.role === role),
+  );
   const joinAction = joinAsParticipant.bind(null, slug, sessionId);
   const startAction = startSession.bind(null, slug, sessionId);
 
   return (
     <div className="mt-8">
       <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-        Waiting room ({session.participants.length}/4)
+        Team roster ({session.participants.length}/4)
       </h2>
       <ul className="mt-3 flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
         {ROLE_ORDER.map((role) => {
@@ -140,7 +143,7 @@ function PendingView({
             type="submit"
             className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Join this session
+            Join this team
           </button>
         </form>
       )}
@@ -169,9 +172,27 @@ function PendingView({
         </form>
       )}
 
+      {canManage && !full && session.participants.length >= 1 && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            Short on players? You can start anyway — {openRoles.join(", ")}{" "}
+            will be auto-played (each round it simply orders what it
+            received).
+          </p>
+          <form action={startAction} className="mt-3">
+            <button
+              type="submit"
+              className="rounded-full border border-amber-300 bg-white px-5 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/40"
+            >
+              Start anyway ({session.participants.length}/4)
+            </button>
+          </form>
+        </div>
+      )}
+
       {!canManage && full && !viewerParticipant?.role && (
         <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
-          This session is full.
+          This team is full.
         </p>
       )}
 
@@ -194,7 +215,7 @@ async function ActiveView({
   if (!viewerParticipant) {
     return (
       <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-500">
-        This session is already in progress and you&apos;re not a participant.
+        This team is already in progress and you&apos;re not a participant.
       </p>
     );
   }
@@ -287,7 +308,6 @@ async function CompletedView({
     orderBy: { round: "asc" },
   });
 
-  const participantRole = new Map(session.participants.map((p) => [p.id, p.role]));
   const ordersByRole: Record<string, number[]> = {};
   const totalCostByRole: Record<string, number> = {};
 
@@ -296,11 +316,13 @@ async function CompletedView({
     totalCostByRole[role] = 0;
   }
   for (const row of rounds) {
-    const role = participantRole.get(row.participantId);
-    if (!role) continue;
-    ordersByRole[role][row.round - 1] = row.outgoingOrder;
-    totalCostByRole[role] += row.cost;
+    ordersByRole[row.role][row.round - 1] = row.outgoingOrder;
+    totalCostByRole[row.role] += row.cost;
   }
+
+  const botRoles = new Set(
+    ROLE_ORDER.filter((role) => !session.participants.some((p) => p.role === role)),
+  );
 
   return (
     <div className="mt-8">
@@ -333,6 +355,11 @@ async function CompletedView({
             >
               <td className="py-2 text-zinc-700 dark:text-zinc-300">
                 {role}
+                {botRoles.has(role) && (
+                  <span className="ml-1.5 text-xs text-zinc-500 dark:text-zinc-500">
+                    (auto)
+                  </span>
+                )}
               </td>
               <td className="py-2 text-right text-zinc-900 dark:text-zinc-50">
                 ${totalCostByRole[role].toFixed(2)}

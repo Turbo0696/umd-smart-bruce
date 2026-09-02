@@ -156,11 +156,12 @@ model GameParticipant {
 }
 
 model GameRoundState {
-  id               String          @id @default(uuid())
-  session          GameSession     @relation(fields: [sessionId], references: [id])
+  id               String           @id @default(uuid())
+  session          GameSession      @relation(fields: [sessionId], references: [id])
   sessionId        String
-  participant      GameParticipant @relation(fields: [participantId], references: [id])
-  participantId    String
+  participant      GameParticipant? @relation(fields: [participantId], references: [id])
+  participantId    String?
+  role             BeerGameRole
   round            Int
   incomingOrder    Int
   incomingShipment Int
@@ -170,7 +171,7 @@ model GameRoundState {
   backlog          Int
   cost             Float
 
-  @@unique([participantId, round])
+  @@unique([sessionId, role, round])
 }
 
 // Stages a submitted order until all 4 participants have one in for the

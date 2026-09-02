@@ -17,7 +17,7 @@ function randomJoinCode(): string {
 export async function createSession(gameSlug: string, formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile || (profile.role !== "INSTRUCTOR" && profile.role !== "ADMIN")) {
-    throw new Error("Only instructors can create a game session.");
+    throw new Error("Only instructors can create a team.");
   }
 
   const game = await prisma.game.findUnique({ where: { slug: gameSlug } });
@@ -51,7 +51,7 @@ export async function createSession(gameSlug: string, formData: FormData) {
 export async function joinSessionByCode(formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile) {
-    throw new Error("You must be logged in to join a session.");
+    throw new Error("You must be logged in to join a team.");
   }
 
   const code = String(formData.get("code") ?? "")
@@ -66,12 +66,12 @@ export async function joinSessionByCode(formData: FormData) {
     include: { game: true },
   });
   if (!session) {
-    throw new Error("No session found with that code.");
+    throw new Error("No team found with that code.");
   }
 
   if (session.status === "PENDING") {
-    // Best-effort: if the session is full or some other state issue
-    // prevents joining, still send them to the session page — its own
+    // Best-effort: if the team is full or some other state issue
+    // prevents joining, still send them to the team page — its own
     // PENDING/ACTIVE/COMPLETED views communicate the outcome.
     try {
       await addParticipant(session.id, profile.id);

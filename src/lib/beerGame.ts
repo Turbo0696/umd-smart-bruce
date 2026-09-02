@@ -65,12 +65,15 @@ export type ResolvedRound = Record<
  * Resolves round N given:
  * - history: a lookup from round number -> per-role state, for rounds < N
  *   (only needs to go back 2 rounds, but callers may pass more)
- * - orders: the 4 submitted outgoingOrder values for round N
+ * - orders: submitted outgoingOrder values for round N, keyed by role. A
+ *   role with no entry has no human player (a short-handed team) and
+ *   auto-orders exactly what it received that round — the standard
+ *   "null strategy" bot rule.
  */
 export function resolveRound(
   round: number,
   history: Map<number, RoundStateByRole>,
-  orders: Record<BeerGameRole, number>,
+  orders: Partial<Record<BeerGameRole, number>>,
 ): ResolvedRound {
   const prior = history.get(round - 1);
   const twoAgo = history.get(round - 2);
@@ -81,9 +84,12 @@ export function resolveRound(
     const priorInventory = prior?.[role]?.inventory ?? INITIAL_INVENTORY;
     const priorBacklog = prior?.[role]?.backlog ?? 0;
 
+    // DOWNSTREAM always points to a role earlier in ROLE_ORDER, so its
+    // result (and thus its final outgoingOrder — human-submitted or
+    // bot-computed) is already resolved by the time we get here.
     const downstream = DOWNSTREAM[role];
     const incomingOrder = downstream
-      ? orders[downstream]
+      ? result[downstream]!.outgoingOrder
       : customerDemand(round);
 
     let incomingShipment: number;
@@ -107,7 +113,7 @@ export function resolveRound(
       incomingOrder,
       incomingShipment,
       shipped,
-      outgoingOrder: orders[role],
+      outgoingOrder: orders[role] ?? incomingOrder,
       inventory,
       backlog,
       cost,

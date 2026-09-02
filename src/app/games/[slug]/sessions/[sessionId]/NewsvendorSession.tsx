@@ -117,7 +117,7 @@ function PendingView({
   return (
     <div className="mt-8">
       <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-        Waiting room ({session.participants.length} joined)
+        Team roster ({session.participants.length} joined)
       </h2>
       <ul className="mt-3 flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
         {session.participants.length === 0 && (
@@ -141,7 +141,7 @@ function PendingView({
             type="submit"
             className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Join this session
+            Join this team
           </button>
         </form>
       )}
@@ -188,7 +188,7 @@ async function ActiveView({
   if (!viewerParticipant) {
     return (
       <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-500">
-        This session is already in progress and you&apos;re not a participant.
+        This team is already in progress and you&apos;re not a participant.
       </p>
     );
   }

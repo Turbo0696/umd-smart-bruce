@@ -30,13 +30,13 @@ export async function startSession(gameSlug: string, sessionId: string) {
     where: { id: sessionId },
     include: { participants: true },
   });
-  if (!session) throw new Error("Session not found.");
+  if (!session) throw new Error("Team not found.");
 
   const canManage =
     profile && (profile.id === session.instructorId || profile.role === "ADMIN");
-  if (!canManage) throw new Error("Only the session's instructor can start it.");
-  if (session.participants.length < 4) {
-    throw new Error("Need 4 players before starting.");
+  if (!canManage) throw new Error("Only the team's instructor can start it.");
+  if (session.participants.length < 1) {
+    throw new Error("Need at least 1 player before starting.");
   }
 
   await prisma.gameSession.update({
@@ -59,11 +59,11 @@ export async function submitOrder(
     where: { id: sessionId },
     include: { participants: true },
   });
-  if (!session) throw new Error("Session not found.");
-  if (session.status !== "ACTIVE") throw new Error("This session is not active.");
+  if (!session) throw new Error("Team not found.");
+  if (session.status !== "ACTIVE") throw new Error("This team is not active.");
 
   const participant = session.participants.find((p) => p.userId === profile.id);
-  if (!participant) throw new Error("You are not a participant in this session.");
+  if (!participant) throw new Error("You are not a participant in this team.");
 
   const amount = Number(formData.get("amount"));
   if (!Number.isInteger(amount) || amount < 0) {
@@ -118,10 +118,8 @@ async function resolveAndAdvance(
 
   const history = new Map<number, RoundStateByRole>();
   for (const row of pastRounds) {
-    const role = roleByParticipantId.get(row.participantId);
-    if (!role) continue;
     const bucket = history.get(row.round) ?? ({} as RoundStateByRole);
-    bucket[role] = {
+    bucket[row.role] = {
       round: row.round,
       inventory: row.inventory,
       backlog: row.backlog,
@@ -131,7 +129,10 @@ async function resolveAndAdvance(
     history.set(row.round, bucket);
   }
 
-  const orders = {} as Record<BeerGameRole, number>;
+  // A role with no participant (short-handed team) never has a
+  // PendingOrder, so it's simply absent here — resolveRound treats a
+  // missing entry as "auto-order what was received."
+  const orders: Partial<Record<BeerGameRole, number>> = {};
   for (const order of pending) {
     const role = roleByParticipantId.get(order.participantId);
     if (role) orders[role] = order.amount;
@@ -143,7 +144,8 @@ async function resolveAndAdvance(
     prisma.gameRoundState.createMany({
       data: ROLE_ORDER.map((role) => ({
         sessionId,
-        participantId: participantByRole.get(role)!.id,
+        participantId: participantByRole.get(role)?.id ?? null,
+        role,
         round,
         ...resolved[role],
       })),

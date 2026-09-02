@@ -23,8 +23,14 @@ export function getCourseById(id: string) {
       topic: true,
       instructor: true,
       enrollments: { include: { user: true }, orderBy: { createdAt: "asc" } },
-      gameSessions: { include: { game: true }, orderBy: { createdAt: "desc" } },
-      newsvendorSessions: { include: { game: true }, orderBy: { createdAt: "desc" } },
+      gameSessions: {
+        include: { game: true, participants: true, roundStates: true },
+        orderBy: { createdAt: "desc" },
+      },
+      newsvendorSessions: {
+        include: { game: true, participants: true, results: true },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 }

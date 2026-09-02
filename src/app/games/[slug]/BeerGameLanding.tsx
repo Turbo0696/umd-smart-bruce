@@ -24,7 +24,7 @@ export function BeerGameLanding({
 
       {!profile && (
         <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-500">
-          Log in to create or join a session.
+          Log in to create or join a team.
         </p>
       )}
 
@@ -54,7 +54,7 @@ export function BeerGameLanding({
             type="submit"
             className="w-full rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Create a new session
+            Create a new team
           </button>
         </form>
       )}
@@ -77,7 +77,7 @@ export function BeerGameLanding({
             type="submit"
             className="self-start rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
           >
-            Join session
+            Join team
           </button>
         </form>
       )}

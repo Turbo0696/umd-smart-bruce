@@ -77,3 +77,76 @@ export async function joinCourseByCode(formData: FormData) {
 
   redirect(`/courses/${course.id}`);
 }
+
+async function createOneTeam(
+  gameSlug: string,
+  courseId: string,
+  instructorId: string,
+  newsvendorParams: {
+    price: number;
+    cost: number;
+    salvage: number;
+    demandMin: number;
+    demandMax: number;
+    totalRounds: number;
+  },
+) {
+  const game = await prisma.game.findUnique({ where: { slug: gameSlug } });
+  if (!game) throw new Error("Game not found.");
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      if (gameSlug === "beer-game") {
+        await prisma.gameSession.create({
+          data: { gameId: game.id, instructorId, courseId, joinCode: randomJoinCode() },
+        });
+      } else {
+        await prisma.newsvendorSession.create({
+          data: { gameId: game.id, instructorId, courseId, joinCode: randomJoinCode(), ...newsvendorParams },
+        });
+      }
+      return;
+    } catch (err) {
+      // Unique constraint collision on joinCode — extremely unlikely, just retry.
+      if (attempt === 4) throw err;
+    }
+  }
+}
+
+export async function createTeams(courseId: string, formData: FormData) {
+  const profile = await getCurrentProfile();
+  if (!profile || (profile.role !== "INSTRUCTOR" && profile.role !== "ADMIN")) {
+    throw new Error("Only instructors can create teams.");
+  }
+
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
+  if (!course) throw new Error("Course not found.");
+  if (course.instructorId !== profile.id && profile.role !== "ADMIN") {
+    throw new Error("Only this course's instructor can create teams.");
+  }
+
+  const gameSlug = String(formData.get("gameSlug") ?? "");
+  if (gameSlug !== "beer-game" && gameSlug !== "newsvendor") {
+    throw new Error("Unknown game.");
+  }
+
+  const count = Number(formData.get("count"));
+  if (!Number.isInteger(count) || count < 1 || count > 50) {
+    throw new Error("Number of teams must be between 1 and 50.");
+  }
+
+  const newsvendorParams = {
+    price: Number(formData.get("price") ?? 5),
+    cost: Number(formData.get("cost") ?? 2),
+    salvage: Number(formData.get("salvage") ?? 0),
+    demandMin: Number(formData.get("demandMin") ?? 10),
+    demandMax: Number(formData.get("demandMax") ?? 50),
+    totalRounds: Number(formData.get("totalRounds") ?? 8),
+  };
+
+  for (let i = 0; i < count; i++) {
+    await createOneTeam(gameSlug, courseId, profile.id, newsvendorParams);
+  }
+
+  redirect(`/courses/${courseId}`);
+}
