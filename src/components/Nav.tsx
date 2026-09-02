@@ -31,14 +31,12 @@ function HamburgerIcon({ open }: { open: boolean }) {
 export function Nav({ profile }: { profile: NavProfile }) {
   const [open, setOpen] = useState(false);
   const canManageTutors = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
+  const isAdmin = profile?.role === "ADMIN";
   const linkClass = "hover:text-zinc-900 dark:hover:text-zinc-50";
 
-  const brand = (
-    <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-      <Image src="/images/bruce-badge.png" alt="" width={36} height={36} className="rounded-full" />
-      Bruce, the smart goose
-    </Link>
-  );
+  function close() {
+    setOpen(false);
+  }
 
   return (
     <header className="border-b border-zinc-200 dark:border-zinc-800">
@@ -47,41 +45,31 @@ export function Nav({ profile }: { profile: NavProfile }) {
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? "Close menu" : "Open menu"}
-          className="sm:hidden"
         >
           <HamburgerIcon open={open} />
         </button>
 
-        <div className="hidden sm:block">{brand}</div>
-        <div className="hidden gap-6 text-sm font-medium text-zinc-600 dark:text-zinc-400 sm:flex sm:items-center">
-          <Link href="/" className={linkClass}>Home</Link>
-          <Link href="/topics" className={linkClass}>Topics</Link>
-          <Link href="/courses" className={linkClass}>Courses</Link>
-          <Link href="/games" className={linkClass}>Simulations &amp; games</Link>
-          {canManageTutors && (
-            <Link href="/tutors" className={linkClass}>AI Tutors</Link>
-          )}
-          {profile ? (
-            <div className="flex flex-col items-end gap-0.5">
-              <span className="text-zinc-400 dark:text-zinc-500">{profile.name ?? profile.email}</span>
-              <SignOutButton />
-            </div>
-          ) : (
-            <Link href="/login" className={linkClass}>Log in</Link>
-          )}
-        </div>
-
-        <div className="sm:hidden">{brand}</div>
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-lg font-semibold tracking-tight"
+          onClick={close}
+        >
+          <Image src="/images/bruce-badge.png" alt="" width={36} height={36} className="rounded-full" />
+          Bruce, the smart goose
+        </Link>
       </nav>
 
       {open && (
-        <div className="flex flex-col gap-4 border-t border-zinc-200 px-6 py-4 text-sm font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-400 sm:hidden">
-          <Link href="/" className={linkClass} onClick={() => setOpen(false)}>Home</Link>
-          <Link href="/topics" className={linkClass} onClick={() => setOpen(false)}>Topics</Link>
-          <Link href="/courses" className={linkClass} onClick={() => setOpen(false)}>Courses</Link>
-          <Link href="/games" className={linkClass} onClick={() => setOpen(false)}>Simulations &amp; games</Link>
+        <div className="flex flex-col gap-4 border-t border-zinc-200 px-6 py-4 text-sm font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+          <Link href="/" className={linkClass} onClick={close}>Home</Link>
+          <Link href="/topics" className={linkClass} onClick={close}>Topics</Link>
+          <Link href="/courses" className={linkClass} onClick={close}>Courses</Link>
+          <Link href="/games" className={linkClass} onClick={close}>Simulations &amp; games</Link>
           {canManageTutors && (
-            <Link href="/tutors" className={linkClass} onClick={() => setOpen(false)}>AI Tutors</Link>
+            <Link href="/tutors" className={linkClass} onClick={close}>AI Tutors</Link>
+          )}
+          {isAdmin && (
+            <Link href="/admin/users" className={linkClass} onClick={close}>Admin</Link>
           )}
           {profile ? (
             <div className="flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-zinc-800">
@@ -89,7 +77,7 @@ export function Nav({ profile }: { profile: NavProfile }) {
               <SignOutButton />
             </div>
           ) : (
-            <Link href="/login" className={linkClass} onClick={() => setOpen(false)}>Log in</Link>
+            <Link href="/login" className={linkClass} onClick={close}>Log in</Link>
           )}
         </div>
       )}
