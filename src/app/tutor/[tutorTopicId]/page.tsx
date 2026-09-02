@@ -6,6 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { MaterialsManager } from "./MaterialsManager";
 import { TutorChat } from "./TutorChat";
 
+// Chat (sendMessage in ./actions.ts) chains an embeddings call and a
+// chat-completion call against a university-run gateway that can be
+// slow; give the route room so a merely-slow (not hung) upstream
+// response isn't killed mid-flight by the platform default. This has
+// to live here rather than in actions.ts — a "use server" file may
+// only export async functions.
+export const maxDuration = 60;
+
 export default async function TutorPage(props: PageProps<"/tutor/[tutorTopicId]">) {
   const { tutorTopicId } = await props.params;
   const [tutor, profile] = await Promise.all([

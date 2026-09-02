@@ -10,11 +10,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { askTutor } from "@/lib/tutor";
 import { embedAndStoreChunks, renderSystemPrompt, retrieveContext } from "@/lib/tutorRag";
 
-// Chat + material processing chain an embeddings call and a chat-completion
-// call against a university-run gateway that can be slow; give the
-// function room so a merely-slow (not hung) upstream response isn't killed
-// mid-flight by the platform default.
-export const maxDuration = 60;
+// NOTE: maxDuration for this route lives in ./page.tsx, not here. A
+// "use server" file may only export async functions — a plain constant
+// like `export const maxDuration` breaks the whole module's export map
+// (every action in this file, e.g. sendMessage, silently disappears from
+// the client bundle) rather than erroring on just that line.
 
 const STORAGE_BUCKET = "tutor-materials";
 
