@@ -44,7 +44,7 @@ export default async function GamesPage() {
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
       <Image
-        src="/images/bruce-patch.png"
+        src="/images/bruce-patch-transparent.png"
         alt="Dearborn Goose Patrol patch, since 1959"
         width={700}
         height={321}

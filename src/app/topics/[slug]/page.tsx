@@ -13,9 +13,9 @@ const TOPIC_BANNERS: Record<string, { src: string; width: number; height: number
     height: 453,
   },
   "supply-chain-management": {
-    src: "/images/bruce-campus-banner.png",
+    src: "/images/bruce-standing-banner.png",
     width: 900,
-    height: 407,
+    height: 390,
   },
 };
 

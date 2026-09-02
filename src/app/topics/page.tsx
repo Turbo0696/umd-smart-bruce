@@ -15,7 +15,7 @@ export default async function TopicsPage() {
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
       <Image
-        src="/images/bruce-seal.png"
+        src="/images/bruce-seal-transparent.png"
         alt="Bruce the Goose seal, est. 1959"
         width={600}
         height={542}
