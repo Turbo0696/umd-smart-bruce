@@ -57,7 +57,7 @@ export default async function Home() {
                   alt=""
                   width={500}
                   height={530}
-                  className="h-24 w-auto shrink-0"
+                  className="h-24 w-auto shrink-0 -scale-x-100"
                 />
                 <div>
                   <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
