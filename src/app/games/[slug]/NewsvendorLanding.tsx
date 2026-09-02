@@ -28,7 +28,7 @@ export function NewsvendorLanding({
 
       {!profile && (
         <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-500">
-          Log in to create or join a team.
+          Log in to create or join a competition.
         </p>
       )}
 
@@ -38,7 +38,7 @@ export function NewsvendorLanding({
           className="mt-8 flex flex-col gap-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800"
         >
           <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-            Create a new team
+            Create a new competition
           </h2>
           <div className="grid grid-cols-2 gap-3">
             <label className={labelClass}>
@@ -131,7 +131,7 @@ export function NewsvendorLanding({
             type="submit"
             className="mt-2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Create team
+            Create competition
           </button>
         </form>
       )}
@@ -154,7 +154,7 @@ export function NewsvendorLanding({
             type="submit"
             className="self-start rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
           >
-            Join team
+            Join competition
           </button>
         </form>
       )}

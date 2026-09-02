@@ -25,11 +25,11 @@ export async function startSession(gameSlug: string, sessionId: string) {
     where: { id: sessionId },
     include: { participants: true },
   });
-  if (!session) throw new Error("Team not found.");
+  if (!session) throw new Error("Competition not found.");
 
   const canManage =
     profile && (profile.id === session.instructorId || profile.role === "ADMIN");
-  if (!canManage) throw new Error("Only the team's instructor can start it.");
+  if (!canManage) throw new Error("Only the competition's instructor can start it.");
   if (session.participants.length < 1) {
     throw new Error("Need at least 1 player before starting.");
   }
@@ -54,11 +54,11 @@ export async function submitOrder(
     where: { id: sessionId },
     include: { participants: true },
   });
-  if (!session) throw new Error("Team not found.");
-  if (session.status !== "ACTIVE") throw new Error("This team is not active.");
+  if (!session) throw new Error("Competition not found.");
+  if (session.status !== "ACTIVE") throw new Error("This competition is not active.");
 
   const participant = session.participants.find((p) => p.userId === profile.id);
-  if (!participant) throw new Error("You are not a participant in this team.");
+  if (!participant) throw new Error("You are not a participant in this competition.");
 
   const amount = Number(formData.get("amount"));
   if (!Number.isInteger(amount) || amount < 0) {

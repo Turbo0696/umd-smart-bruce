@@ -20,7 +20,7 @@ export async function createNewsvendorSession(
 ) {
   const profile = await getCurrentProfile();
   if (!profile || (profile.role !== "INSTRUCTOR" && profile.role !== "ADMIN")) {
-    throw new Error("Only instructors can create a team.");
+    throw new Error("Only instructors can create a competition.");
   }
 
   const game = await prisma.game.findUnique({ where: { slug: gameSlug } });
@@ -79,7 +79,7 @@ export async function createNewsvendorSession(
 export async function joinNewsvendorSessionByCode(formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile) {
-    throw new Error("You must be logged in to join a team.");
+    throw new Error("You must be logged in to join a competition.");
   }
 
   const code = String(formData.get("code") ?? "")
@@ -94,7 +94,7 @@ export async function joinNewsvendorSessionByCode(formData: FormData) {
     include: { game: true },
   });
   if (!session) {
-    throw new Error("No team found with that code.");
+    throw new Error("No competition found with that code.");
   }
 
   if (session.status === "PENDING") {

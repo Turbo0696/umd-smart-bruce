@@ -7,9 +7,9 @@ export async function addNewsvendorParticipant(sessionId: string, userId: string
     where: { id: sessionId },
     include: { participants: true },
   });
-  if (!session) throw new Error("Team not found.");
+  if (!session) throw new Error("Competition not found.");
   if (session.status !== "PENDING") {
-    throw new Error("This team has already started.");
+    throw new Error("This competition has already started.");
   }
   if (session.participants.some((p) => p.userId === userId)) {
     return; // already joined, nothing to do
