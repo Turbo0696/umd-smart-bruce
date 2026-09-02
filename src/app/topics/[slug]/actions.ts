@@ -36,3 +36,18 @@ export async function createPost(topicSlug: string, formData: FormData) {
 
   revalidatePath(`/topics/${topicSlug}`);
 }
+
+export async function deletePost(topicSlug: string, postId: string) {
+  const profile = await getCurrentProfile();
+
+  if (!profile || (profile.role !== "INSTRUCTOR" && profile.role !== "ADMIN")) {
+    throw new Error("Only instructors can delete posts.");
+  }
+
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) throw new Error("Post not found.");
+
+  await prisma.post.delete({ where: { id: postId } });
+
+  revalidatePath(`/topics/${topicSlug}`);
+}

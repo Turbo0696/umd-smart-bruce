@@ -50,6 +50,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
             <div className="flex gap-6 text-sm font-medium text-zinc-600 dark:text-zinc-400">
               <Link
+                href="/"
+                className="hover:text-zinc-900 dark:hover:text-zinc-50"
+              >
+                Home
+              </Link>
+              <Link
                 href="/topics"
                 className="hover:text-zinc-900 dark:hover:text-zinc-50"
               >
@@ -67,8 +73,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               >
                 Simulations &amp; games
               </Link>
+              {(profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN") && (
+                <Link
+                  href="/tutors"
+                  className="hover:text-zinc-900 dark:hover:text-zinc-50"
+                >
+                  AI Tutors
+                </Link>
+              )}
               {profile ? (
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col items-end gap-0.5">
                   <span className="text-zinc-400 dark:text-zinc-500">
                     {profile.name ?? profile.email}
                   </span>

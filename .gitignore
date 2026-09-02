@@ -37,6 +37,9 @@ yarn-error.log*
 # local notes with live credentials — never commit
 demo-accounts.md
 
+# course material files staged locally for testing — not part of the repo
+/materials/
+
 # vercel
 .vercel
 
