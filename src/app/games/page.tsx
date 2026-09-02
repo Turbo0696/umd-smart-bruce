@@ -7,6 +7,7 @@ import {
   BabyFaceIcon,
   BeerMugIcon,
   DiceIcon,
+  FishBoatIcon,
   NewspaperIcon,
   TrendChartIcon,
 } from "@/components/GameIcons";
@@ -18,6 +19,8 @@ const GAME_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   newsvendor: NewspaperIcon,
   "newsvendor-solo": NewspaperIcon,
   forecasting: TrendChartIcon,
+  "fish-banks": FishBoatIcon,
+  "fish-banks-solo": FishBoatIcon,
 };
 
 const SECTIONS: { category: GameCategory; title: string; blurb: string }[] = [

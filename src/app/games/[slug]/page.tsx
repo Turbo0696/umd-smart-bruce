@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { NEWSVENDOR_SCENARIOS } from "@/lib/newsvendorScenarios";
 import { BeerGameLanding } from "./BeerGameLanding";
 import { DiceSimulator } from "./DiceSimulator";
+import { FishBanksLanding } from "./FishBanksLanding";
+import { FishBanksSoloGame } from "./FishBanksSoloGame";
 import { ForecastingGame } from "./ForecastingGame";
 import { NewsvendorLanding } from "./NewsvendorLanding";
 import { NewsvendorSoloGame } from "./NewsvendorSoloGame";
@@ -23,7 +25,7 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
     notFound();
   }
 
-  if (slug === "beer-game" || slug === "newsvendor") {
+  if (slug === "beer-game" || slug === "newsvendor" || slug === "fish-banks") {
     const canCreate = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
     const instructorCourses = canCreate
       ? await listCoursesForInstructor(profile!.id)
@@ -34,9 +36,17 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
         <BeerGameLanding game={game} profile={profile} instructorCourses={instructorCourses} />
       );
     }
+    if (slug === "fish-banks") {
+      return (
+        <FishBanksLanding game={game} profile={profile} instructorCourses={instructorCourses} />
+      );
+    }
     return (
       <NewsvendorLanding game={game} profile={profile} instructorCourses={instructorCourses} />
     );
+  }
+  if (slug === "fish-banks-solo") {
+    return <FishBanksSoloGame />;
   }
   if (slug === "forecasting") {
     const canSeeClass = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";

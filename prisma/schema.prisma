@@ -31,6 +31,8 @@ model Profile {
   newsvendorParticipant    NewsvendorParticipant[]
   forecastingAttempts      ForecastingAttempt[]
   soloNewsvendorAttempts   SoloNewsvendorAttempt[]
+  fishBanksSessions        FishBanksSession[]        @relation("FishBanksSessionInstructor")
+  fishBanksParticipant     FishBanksParticipant[]
   chats                    ChatMessage[]
 }
 
@@ -74,6 +76,7 @@ model Course {
   enrollments        Enrollment[]
   gameSessions       GameSession[]
   newsvendorSessions NewsvendorSession[]
+  fishBanksSessions  FishBanksSession[]
   tutorTopics        TutorTopic[]
 }
 
@@ -107,6 +110,7 @@ model Game {
 
   sessions           GameSession[]
   newsvendorSessions NewsvendorSession[]
+  fishBanksSessions  FishBanksSession[]
 }
 
 enum SessionStatus {
@@ -268,6 +272,116 @@ model NewsvendorPendingOrder {
   amount        Int
 
   @@unique([participantId, round])
+}
+
+// --- Fish Banks classroom game (Decision Sciences) ---
+// A simplified version of MIT's "Fishbanks, Ltd." simulation: teams run
+// competing fishing companies drawing from two shared, regenerating fish
+// stocks (coastal + deep sea) tracked on the session itself, rather than
+// per-participant like the Beer Game's fixed roles — any number of teams
+// can join. Resolution logic lives in src/lib/fishBanks.ts.
+
+model FishBanksSession {
+  id           String        @id @default(uuid())
+  game         Game          @relation(fields: [gameId], references: [id])
+  gameId       String
+  course       Course?       @relation(fields: [courseId], references: [id])
+  courseId     String?
+  instructor   Profile       @relation("FishBanksSessionInstructor", fields: [instructorId], references: [id])
+  instructorId String
+  joinCode     String        @unique
+  status       SessionStatus @default(PENDING)
+  currentRound Int           @default(1)
+  totalRounds  Int           @default(15)
+  coastalStock Float         @default(400)
+  deepSeaStock Float         @default(1200)
+  config       Json?
+  createdAt    DateTime      @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  participants     FishBanksParticipant[]
+  teamRounds       FishBanksTeamRound[]
+  marketRounds     FishBanksMarketRound[]
+  pendingDecisions FishBanksPendingDecision[]
+}
+
+model FishBanksParticipant {
+  id          String           @id @default(uuid())
+  session     FishBanksSession @relation(fields: [sessionId], references: [id])
+  sessionId   String
+  user        Profile          @relation(fields: [userId], references: [id])
+  userId      String
+  companyName String
+  cash        Float
+  ships       Int
+  joinedAt    DateTime         @default(now())
+
+  rounds           FishBanksTeamRound[]
+  pendingDecisions FishBanksPendingDecision[]
+
+  @@unique([sessionId, userId])
+}
+
+// Staged the same way as PendingOrder / NewsvendorPendingOrder: a
+// team's decision sits here until every current participant has one in
+// for the round (or the instructor force-resolves), at which point the
+// engine resolves everyone into FishBanksTeamRound rows and this row is
+// deleted.
+model FishBanksPendingDecision {
+  id            String               @id @default(uuid())
+  session       FishBanksSession     @relation(fields: [sessionId], references: [id])
+  sessionId     String
+  participant   FishBanksParticipant @relation(fields: [participantId], references: [id])
+  participantId String
+  round         Int
+  shipsCoastal  Int
+  shipsDeepSea  Int
+  buildShips    Int
+  scrapShips    Int
+
+  @@unique([participantId, round])
+}
+
+model FishBanksTeamRound {
+  id            String               @id @default(uuid())
+  session       FishBanksSession     @relation(fields: [sessionId], references: [id])
+  sessionId     String
+  participant   FishBanksParticipant @relation(fields: [participantId], references: [id])
+  participantId String
+  round         Int
+  shipsCoastal  Int
+  shipsDeepSea  Int
+  shipsBuilt    Int
+  shipsScrapped Int
+  catchCoastal  Float
+  catchDeepSea  Float
+  revenue       Float
+  operatingCost Float
+  buildCost     Float
+  scrapRevenue  Float
+  interest      Float
+  profit        Float
+  cash          Float // ending balance
+  ships         Int // ending fleet size
+  netWorth      Float // ending cash + fleet at scrap value
+
+  @@unique([participantId, round])
+}
+
+// One row per session per round: the shared stock/price state everyone
+// was fishing against, kept for the end-of-game chart.
+model FishBanksMarketRound {
+  id           String           @id @default(uuid())
+  session      FishBanksSession @relation(fields: [sessionId], references: [id])
+  sessionId    String
+  round        Int
+  coastalStock Float
+  deepSeaStock Float
+  price        Float
+  totalCatch   Float
+
+  @@unique([sessionId, round])
 }
 
 // --- Forecasting practice game (Decision Sciences) ---

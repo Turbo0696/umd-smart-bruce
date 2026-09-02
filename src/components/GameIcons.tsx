@@ -102,6 +102,35 @@ export function NewspaperIcon({ className = "" }: IconProps) {
   );
 }
 
+export function FishBoatIcon({ className = "" }: IconProps) {
+  return (
+    <div className={`${BADGE} ${className}`}>
+      <svg width={40} height={40} viewBox="0 0 40 40" role="img" aria-hidden="true">
+        <path
+          d="M 6 24 h 28 l -4 8 h -20 Z"
+          className="fill-sky-50 stroke-sky-500 dark:fill-sky-950 dark:stroke-sky-400"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
+        <line x1="20" y1="24" x2="20" y2="8" className="stroke-sky-600 dark:stroke-sky-300" strokeWidth={1.5} />
+        <path
+          d="M 20 9 L 30 21 L 20 21 Z"
+          className="fill-sky-100 stroke-sky-500 dark:fill-sky-900 dark:stroke-sky-300"
+          strokeWidth={1.2}
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 4 30 Q 8 27 12 30 Q 16 33 20 30 Q 24 27 28 30 Q 32 33 36 30"
+          fill="none"
+          className="stroke-sky-400 dark:stroke-sky-500"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
 export function TrendChartIcon({ className = "" }: IconProps) {
   return (
     <div className={`${BADGE} ${className}`}>
