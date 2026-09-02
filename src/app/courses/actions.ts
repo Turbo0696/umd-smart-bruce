@@ -1,8 +1,24 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { findOrInviteUser } from "@/lib/userAdmin";
+
+async function requireCourseManager(courseId: string) {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error("You must be logged in.");
+
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
+  if (!course) throw new Error("Course not found.");
+
+  if (course.instructorId !== profile.id && profile.role !== "ADMIN") {
+    throw new Error("Only this course's instructor can manage its roster.");
+  }
+
+  return { profile, course };
+}
 
 function randomJoinCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
@@ -76,6 +92,31 @@ export async function joinCourseByCode(formData: FormData) {
   });
 
   redirect(`/courses/${course.id}`);
+}
+
+export async function addStudentToCourse(courseId: string, formData: FormData) {
+  const { course } = await requireCourseManager(courseId);
+
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) throw new Error("Email is required.");
+
+  const student = await findOrInviteUser(email, "STUDENT");
+
+  await prisma.enrollment.upsert({
+    where: { courseId_userId: { courseId: course.id, userId: student.id } },
+    update: {},
+    create: { courseId: course.id, userId: student.id },
+  });
+
+  revalidatePath(`/courses/${courseId}`);
+}
+
+export async function removeStudentFromCourse(courseId: string, userId: string) {
+  await requireCourseManager(courseId);
+
+  await prisma.enrollment.deleteMany({ where: { courseId, userId } });
+
+  revalidatePath(`/courses/${courseId}`);
 }
 
 async function createOneTeam(

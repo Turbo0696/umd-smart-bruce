@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentProfile } from "@/lib/auth";
 import { getCourseById } from "@/lib/courses";
 import { CreateTeamsForm } from "../CreateTeamsForm";
+import { RosterManager } from "../RosterManager";
 
 function average(values: number[]): number {
   if (values.length === 0) return 0;
@@ -96,34 +97,15 @@ export default async function CourseDetailPage(props: PageProps<"/courses/[id]">
             </span>
           </p>
 
-          <div className="mt-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              Roster ({course.enrollments.length})
-            </h2>
-            {course.enrollments.length === 0 ? (
-              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-500">
-                No students enrolled yet.
-              </p>
-            ) : (
-              <table className="mt-2 w-full text-sm">
-                <tbody>
-                  {course.enrollments.map((e) => (
-                    <tr
-                      key={e.id}
-                      className="border-t border-zinc-100 dark:border-zinc-800"
-                    >
-                      <td className="py-1.5 text-zinc-700 dark:text-zinc-300">
-                        {e.user.name ?? e.user.email}
-                      </td>
-                      <td className="py-1.5 text-right text-zinc-500 dark:text-zinc-500">
-                        Joined {e.createdAt.toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <RosterManager
+            courseId={course.id}
+            enrollments={course.enrollments.map((e) => ({
+              id: e.id,
+              userId: e.userId,
+              createdAt: e.createdAt.toISOString(),
+              user: { name: e.user.name, email: e.user.email },
+            }))}
+          />
 
           <div className="mt-6">
             <CreateTeamsForm courseId={course.id} />

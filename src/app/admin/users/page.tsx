@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { CreateUserForm } from "./CreateUserForm";
 import { RoleSelect } from "./RoleSelect";
 
 export default async function AdminUsersPage() {
@@ -19,6 +20,10 @@ export default async function AdminUsersPage() {
       <p className="mt-2 text-zinc-600 dark:text-zinc-400">
         Manage roles for everyone who has signed in. Changes apply immediately.
       </p>
+
+      <div className="mt-6">
+        <CreateUserForm />
+      </div>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
         <table className="w-full text-sm">
