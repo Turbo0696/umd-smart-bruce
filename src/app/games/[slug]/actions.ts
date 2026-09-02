@@ -14,7 +14,7 @@ function randomJoinCode(): string {
   return code;
 }
 
-export async function createSession(gameSlug: string) {
+export async function createSession(gameSlug: string, formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile || (profile.role !== "INSTRUCTOR" && profile.role !== "ADMIN")) {
     throw new Error("Only instructors can create a game session.");
@@ -25,6 +25,8 @@ export async function createSession(gameSlug: string) {
     throw new Error("Game not found.");
   }
 
+  const courseId = String(formData.get("courseId") ?? "").trim() || undefined;
+
   let session;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
@@ -32,6 +34,7 @@ export async function createSession(gameSlug: string) {
         data: {
           gameId: game.id,
           instructorId: profile.id,
+          courseId,
           joinCode: randomJoinCode(),
         },
       });

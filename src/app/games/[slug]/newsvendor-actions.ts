@@ -48,6 +48,8 @@ export async function createNewsvendorSession(
   }
   if (totalRounds < 1) throw new Error("Need at least 1 round.");
 
+  const courseId = String(formData.get("courseId") ?? "").trim() || undefined;
+
   let session;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
@@ -55,6 +57,7 @@ export async function createNewsvendorSession(
         data: {
           gameId: game.id,
           instructorId: profile.id,
+          courseId,
           joinCode: randomJoinCode(),
           price,
           cost,

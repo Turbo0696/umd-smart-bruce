@@ -4,9 +4,11 @@ import { createSession, joinSessionByCode } from "./actions";
 export function BeerGameLanding({
   game,
   profile,
+  instructorCourses,
 }: {
   game: Game;
   profile: Profile | null;
+  instructorCourses?: { id: string; name: string; term: string }[];
 }) {
   const canCreate = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
   const createSessionForGame = createSession.bind(null, game.slug);
@@ -27,7 +29,27 @@ export function BeerGameLanding({
       )}
 
       {canCreate && (
-        <form action={createSessionForGame} className="mt-8">
+        <form
+          action={createSessionForGame}
+          className="mt-8 flex flex-col gap-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800"
+        >
+          {instructorCourses && instructorCourses.length > 0 && (
+            <label className="flex flex-col gap-1 text-sm">
+              Assign to a course (optional)
+              <select
+                name="courseId"
+                defaultValue=""
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+              >
+                <option value="">No course (standalone)</option>
+                {instructorCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.term}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="submit"
             className="w-full rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"

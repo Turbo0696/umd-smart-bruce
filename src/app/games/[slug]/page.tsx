@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
+import { listCoursesForInstructor } from "@/lib/courses";
 import type { ForecastMethod } from "@/lib/forecasting";
 import { METHOD_ORDER } from "@/lib/forecasting";
 import { prisma } from "@/lib/prisma";
@@ -22,11 +23,20 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
     notFound();
   }
 
-  if (slug === "beer-game") {
-    return <BeerGameLanding game={game} profile={profile} />;
-  }
-  if (slug === "newsvendor") {
-    return <NewsvendorLanding game={game} profile={profile} />;
+  if (slug === "beer-game" || slug === "newsvendor") {
+    const canCreate = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
+    const instructorCourses = canCreate
+      ? await listCoursesForInstructor(profile!.id)
+      : [];
+
+    if (slug === "beer-game") {
+      return (
+        <BeerGameLanding game={game} profile={profile} instructorCourses={instructorCourses} />
+      );
+    }
+    return (
+      <NewsvendorLanding game={game} profile={profile} instructorCourses={instructorCourses} />
+    );
   }
   if (slug === "forecasting") {
     const canSeeClass = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";

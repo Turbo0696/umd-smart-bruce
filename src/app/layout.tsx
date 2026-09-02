@@ -56,6 +56,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 Topics
               </Link>
               <Link
+                href="/courses"
+                className="hover:text-zinc-900 dark:hover:text-zinc-50"
+              >
+                Courses
+              </Link>
+              <Link
                 href="/games"
                 className="hover:text-zinc-900 dark:hover:text-zinc-50"
               >

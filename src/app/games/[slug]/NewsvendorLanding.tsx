@@ -4,9 +4,11 @@ import { createNewsvendorSession, joinNewsvendorSessionByCode } from "./newsvend
 export function NewsvendorLanding({
   game,
   profile,
+  instructorCourses,
 }: {
   game: Game;
   profile: Profile | null;
+  instructorCourses?: { id: string; name: string; term: string }[];
 }) {
   const canCreate = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
   const createSessionForGame = createNewsvendorSession.bind(null, game.slug);
@@ -112,6 +114,19 @@ export function NewsvendorLanding({
               />
             </label>
           </div>
+          {instructorCourses && instructorCourses.length > 0 && (
+            <label className={labelClass}>
+              Assign to a course (optional)
+              <select name="courseId" defaultValue="" className={inputClass}>
+                <option value="">No course (standalone)</option>
+                {instructorCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.term}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="submit"
             className="mt-2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"

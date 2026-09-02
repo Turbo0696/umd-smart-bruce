@@ -69,16 +69,18 @@ model Course {
   joinCode     String   @unique
   createdAt    DateTime @default(now())
 
-  enrollments  Enrollment[]
-  gameSessions GameSession[]
+  enrollments        Enrollment[]
+  gameSessions       GameSession[]
+  newsvendorSessions NewsvendorSession[]
 }
 
 model Enrollment {
-  id       String  @id @default(uuid())
-  course   Course  @relation(fields: [courseId], references: [id])
-  courseId String
-  user     Profile @relation(fields: [userId], references: [id])
-  userId   String
+  id        String   @id @default(uuid())
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String
+  user      Profile  @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
 
   @@unique([courseId, userId])
 }
@@ -195,6 +197,8 @@ model NewsvendorSession {
   id           String        @id @default(uuid())
   game         Game          @relation(fields: [gameId], references: [id])
   gameId       String
+  course       Course?       @relation(fields: [courseId], references: [id])
+  courseId     String?
   instructor   Profile       @relation("NewsvendorSessionInstructor", fields: [instructorId], references: [id])
   instructorId String
   joinCode     String        @unique
