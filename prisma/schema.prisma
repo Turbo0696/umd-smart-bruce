@@ -341,6 +341,7 @@ enum MaterialType {
   TXT
   DOCX
   PPTX
+  PDF
 }
 
 enum MaterialStatus {

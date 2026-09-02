@@ -67,7 +67,7 @@ export function MaterialsManager({
         Materials
       </h2>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
-        The tutor only answers from these documents — .txt, .docx, or .pptx.
+        The tutor only answers from these documents — .txt, .docx, .pptx, or .pdf.
       </p>
 
       {materials.length > 0 && (
@@ -110,7 +110,7 @@ export function MaterialsManager({
         <input
           type="file"
           name="file"
-          accept=".txt,.docx,.pptx"
+          accept=".txt,.docx,.pptx,.pdf"
           required
           disabled={uploading}
           className="text-sm text-zinc-700 dark:text-zinc-300"

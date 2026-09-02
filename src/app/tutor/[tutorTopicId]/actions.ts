@@ -62,9 +62,17 @@ export async function uploadMaterial(tutorTopicId: string, formData: FormData) {
 
   const ext = file.name.split(".").pop()?.toLowerCase();
   const fileType: MaterialType | null =
-    ext === "txt" ? "TXT" : ext === "docx" ? "DOCX" : ext === "pptx" ? "PPTX" : null;
+    ext === "txt"
+      ? "TXT"
+      : ext === "docx"
+        ? "DOCX"
+        : ext === "pptx"
+          ? "PPTX"
+          : ext === "pdf"
+            ? "PDF"
+            : null;
   if (!fileType) {
-    throw new Error("Only .txt, .docx, and .pptx files are supported.");
+    throw new Error("Only .txt, .docx, .pptx, and .pdf files are supported.");
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());

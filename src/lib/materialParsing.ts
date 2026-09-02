@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import path from "path";
 import mammoth from "mammoth";
 import PptxParser from "node-pptx-parser";
+import { extractText as extractPdfText, getDocumentProxy } from "unpdf";
 import type { MaterialType } from "@prisma/client";
 
 export async function extractText(
@@ -17,6 +18,12 @@ export async function extractText(
   if (fileType === "DOCX") {
     const result = await mammoth.extractRawText({ buffer });
     return result.value;
+  }
+
+  if (fileType === "PDF") {
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await extractPdfText(pdf, { mergePages: true });
+    return text;
   }
 
   // node-pptx-parser only accepts a file path, not a buffer — Vercel's
