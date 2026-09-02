@@ -5,8 +5,11 @@ const EMBEDDING_MODEL = "text-embedding-3-small";
 // Same Portkey-fronted UMGPT gateway as src/lib/tutor.ts, just a
 // different path — it proxies an OpenAI-compatible embeddings endpoint
 // under the same key, so no separate embeddings provider is needed.
-// Runs before the (slower) chat completion in the same request, so it
-// gets a short budget: up to 2 attempts x 8s = 16s worst case.
+// Runs before the (much slower) chat completion in the same request, so
+// it gets a short budget — embeddings are small and normally fast
+// (well under a second). A retry only fires for a fast-failing 5xx/429,
+// not for this timeout (see fetchRetry), so real-world worst case stays
+// close to one attempt.
 const EMBEDDINGS_ATTEMPT_TIMEOUT_MS = 8_000;
 
 export async function embedTexts(texts: string[]): Promise<number[][]> {

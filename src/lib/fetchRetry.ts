@@ -1,25 +1,26 @@
 // Shared retry wrapper for the two calls that hit the UMGPT/Portkey
 // gateway (chat completions in ./tutor.ts, embeddings in ./embeddings.ts).
-// That gateway is an external, occasionally-slow service — a bare `fetch`
-// with no timeout can hang until the whole Vercel function is killed, and
-// a single dropped connection or 5xx used to end the student's turn with
-// no way to recover short of retyping their question.
 //
-// This gives each call a bounded number of retries with a per-attempt
-// timeout, but only for failures that are actually worth retrying:
-// network errors, timeouts, and 5xx/429 — not 4xx like a bad request or
-// an auth failure, which will just fail the same way again.
-//
-// sendMessage (see the tutor route's actions.ts) calls embeddings and
-// then chat completions *sequentially* inside one 60s server action, so
-// the two call sites pass their own (attempts, timeoutMs) sized to leave
-// room for each other — see the comments in tutor.ts / embeddings.ts.
+// Confirmed against the gateway's own usage dashboard: a "Couldn't reach
+// the tutor" failure was showing token consumption on the gateway side —
+// meaning the model was actually generating a full answer, our client
+// just gave up on it first. So a timeout here is NOT the same kind of
+// failure as a dropped connection or a 5xx: retrying it with the same
+// short deadline would only abort a second (still-billed) generation for
+// no benefit. Only network-level errors and 5xx/429 are retried; an
+// abort/timeout fails immediately after its one attempt, and a plain
+// 4xx (bad request, bad key) isn't retried either since it'll just fail
+// the same way again.
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 15_000;
 const DEFAULT_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 500;
 
 function isRetryableStatus(status: number): boolean {
   return status === 429 || status >= 500;
+}
+
+function isTimeout(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
 }
 
 export async function fetchWithRetry(
@@ -47,11 +48,21 @@ export async function fetchWithRetry(
     } catch (err) {
       clearTimeout(timer);
       lastError = err;
-      if (attempt < attempts) {
+      if (attempt < attempts && !isTimeout(err)) {
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
         continue;
       }
+      // A timeout means the upstream call was still in flight (and, per
+      // the gateway dashboard, still being billed) — stop here rather
+      // than starting a second one on top of it.
+      break;
     }
+  }
+
+  if (isTimeout(lastError)) {
+    throw new Error(
+      "The tutor is taking longer than expected to respond. It may still finish server-side, but this request timed out — please try again.",
+    );
   }
 
   throw lastError instanceof Error
