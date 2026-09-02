@@ -5,11 +5,17 @@
 // a single dropped connection or 5xx used to end the student's turn with
 // no way to recover short of retyping their question.
 //
-// This gives each call one retry (two attempts total) with a per-attempt
+// This gives each call a bounded number of retries with a per-attempt
 // timeout, but only for failures that are actually worth retrying:
 // network errors, timeouts, and 5xx/429 — not 4xx like a bad request or
 // an auth failure, which will just fail the same way again.
-const ATTEMPT_TIMEOUT_MS = 25_000;
+//
+// sendMessage (see the tutor route's actions.ts) calls embeddings and
+// then chat completions *sequentially* inside one 60s server action, so
+// the two call sites pass their own (attempts, timeoutMs) sized to leave
+// room for each other — see the comments in tutor.ts / embeddings.ts.
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 15_000;
+const DEFAULT_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 500;
 
 function isRetryableStatus(status: number): boolean {
@@ -19,13 +25,15 @@ function isRetryableStatus(status: number): boolean {
 export async function fetchWithRetry(
   url: string,
   init: RequestInit,
-  attempts = 2,
+  options: { attempts?: number; timeoutMs?: number } = {},
 ): Promise<Response> {
+  const attempts = options.attempts ?? DEFAULT_ATTEMPTS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const res = await fetch(url, { ...init, signal: controller.signal });
