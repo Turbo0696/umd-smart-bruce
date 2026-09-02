@@ -39,7 +39,7 @@ export function Nav({ profile }: { profile: NavProfile }) {
   }
 
   return (
-    <header className="border-b border-zinc-200 dark:border-zinc-800">
+    <header className="relative border-b border-zinc-200 dark:border-zinc-800">
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <button
           type="button"
@@ -60,26 +60,38 @@ export function Nav({ profile }: { profile: NavProfile }) {
       </nav>
 
       {open && (
-        <div className="flex flex-col gap-4 border-t border-zinc-200 px-6 py-4 text-sm font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-          <Link href="/" className={linkClass} onClick={close}>Home</Link>
-          <Link href="/topics" className={linkClass} onClick={close}>Topics</Link>
-          <Link href="/courses" className={linkClass} onClick={close}>Courses</Link>
-          <Link href="/games" className={linkClass} onClick={close}>Simulations &amp; games</Link>
-          {canManageTutors && (
-            <Link href="/tutors" className={linkClass} onClick={close}>AI Tutors</Link>
-          )}
-          {isAdmin && (
-            <Link href="/admin/users" className={linkClass} onClick={close}>Admin</Link>
-          )}
-          {profile ? (
-            <div className="flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-zinc-800">
-              <span className="text-zinc-400 dark:text-zinc-500">{profile.name ?? profile.email}</span>
-              <SignOutButton />
-            </div>
-          ) : (
-            <Link href="/login" className={linkClass} onClick={close}>Log in</Link>
-          )}
-        </div>
+        <>
+          {/* Desktop: clicking outside the popover closes it. No-op on mobile, where the menu is inline. */}
+          <div
+            className="fixed inset-0 z-40 hidden md:block"
+            onClick={close}
+            aria-hidden="true"
+          />
+          <div
+            className="flex flex-col gap-4 border-t border-zinc-200 px-6 py-4 text-sm font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-400
+                       md:absolute md:left-6 md:top-full md:z-50 md:mt-2 md:w-64 md:rounded-xl md:border md:bg-white md:p-4 md:shadow-xl
+                       md:dark:border-zinc-800 md:dark:bg-zinc-900"
+          >
+            <Link href="/" className={linkClass} onClick={close}>Home</Link>
+            <Link href="/topics" className={linkClass} onClick={close}>Topics</Link>
+            <Link href="/courses" className={linkClass} onClick={close}>Courses</Link>
+            <Link href="/games" className={linkClass} onClick={close}>Simulations &amp; games</Link>
+            {canManageTutors && (
+              <Link href="/tutors" className={linkClass} onClick={close}>AI Tutors</Link>
+            )}
+            {isAdmin && (
+              <Link href="/admin/users" className={linkClass} onClick={close}>Admin</Link>
+            )}
+            {profile ? (
+              <div className="flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                <span className="text-zinc-400 dark:text-zinc-500">{profile.name ?? profile.email}</span>
+                <SignOutButton />
+              </div>
+            ) : (
+              <Link href="/login" className={linkClass} onClick={close}>Log in</Link>
+            )}
+          </div>
+        </>
       )}
     </header>
   );
