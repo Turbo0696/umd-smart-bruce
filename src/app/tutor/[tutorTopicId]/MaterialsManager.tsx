@@ -1,7 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { deleteMaterial, reindexMaterial, uploadMaterial } from "./actions";
+import { createClient } from "@/lib/supabase/client";
+import { createUploadUrl, deleteMaterial, processUploadedMaterial, reindexMaterial } from "./actions";
+
+const STORAGE_BUCKET = "tutor-materials";
 
 type Material = {
   id: string;
@@ -25,10 +28,30 @@ export function MaterialsManager({
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      setError("Choose a file.");
+      return;
+    }
+
     setUploading(true);
     setError(null);
     try {
-      await uploadMaterial(tutorTopicId, formData);
+      // The file itself goes straight from the browser to Supabase
+      // Storage via a signed URL — it never passes through our own
+      // server action's request body, which Vercel caps around 4.5MB
+      // (far too small for a real slide deck).
+      const { storagePath, token, fileType } = await createUploadUrl(tutorTopicId, file.name);
+
+      const supabase = createClient();
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .uploadToSignedUrl(storagePath, token, file);
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      await processUploadedMaterial(tutorTopicId, storagePath, file.name, fileType);
       formRef.current?.reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");

@@ -32,62 +32,102 @@ async function requireManager(tutorTopicId: string) {
   return tutor;
 }
 
+const PROCESSING_TIMEOUT_MS = 60_000;
+
 async function processMaterial(materialId: string, buffer: Buffer, fileType: MaterialType) {
   try {
-    const text = await extractText(buffer, fileType);
-    const chunks = chunkText(text);
-    await embedAndStoreChunks(materialId, chunks);
+    await Promise.race([
+      (async () => {
+        const text = await extractText(buffer, fileType);
+        const chunks = chunkText(text);
+        await embedAndStoreChunks(materialId, chunks);
+      })(),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Processing took too long (over 60s) — try a smaller or simpler file.")),
+          PROCESSING_TIMEOUT_MS,
+        ),
+      ),
+    ]);
     await prisma.tutorMaterial.update({
       where: { id: materialId },
       data: { status: "READY", errorMessage: null },
     });
   } catch (err) {
-    await prisma.tutorMaterial.update({
-      where: { id: materialId },
-      data: {
-        status: "FAILED",
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
-      },
-    });
+    // Deliberately outside the try above: if the failure was itself a
+    // database hiccup, we still want a best-effort attempt to record
+    // it rather than leaving the material stuck in PENDING forever.
+    try {
+      await prisma.tutorMaterial.update({
+        where: { id: materialId },
+        data: {
+          status: "FAILED",
+          errorMessage: err instanceof Error ? err.message : "Unknown error",
+        },
+      });
+    } catch {
+      // Nothing more we can do — the material will just show PENDING
+      // until a manual reindex.
+    }
   }
 }
 
-export async function uploadMaterial(tutorTopicId: string, formData: FormData) {
+function detectFileType(fileName: string): MaterialType | null {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  return ext === "txt"
+    ? "TXT"
+    : ext === "docx"
+      ? "DOCX"
+      : ext === "pptx"
+        ? "PPTX"
+        : ext === "pdf"
+          ? "PDF"
+          : null;
+}
+
+// The raw file bytes never pass through this server action's own
+// request body — Vercel caps that around 4.5MB, far too small for a
+// real slide deck. Instead the client uploads directly to Supabase
+// Storage using a short-lived signed URL from here, then calls
+// processUploadedMaterial below with just the (tiny) storage path.
+export async function createUploadUrl(tutorTopicId: string, fileName: string) {
   await requireManager(tutorTopicId);
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Choose a file.");
-  }
-
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  const fileType: MaterialType | null =
-    ext === "txt"
-      ? "TXT"
-      : ext === "docx"
-        ? "DOCX"
-        : ext === "pptx"
-          ? "PPTX"
-          : ext === "pdf"
-            ? "PDF"
-            : null;
+  const fileType = detectFileType(fileName);
   if (!fileType) {
     throw new Error("Only .txt, .docx, .pptx, and .pdf files are supported.");
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const storagePath = `${tutorTopicId}/${randomUUID()}-${file.name}`;
+  const storagePath = `${tutorTopicId}/${randomUUID()}-${fileName}`;
 
   const admin = createAdminClient();
-  const { error: uploadError } = await admin.storage
+  const { data, error } = await admin.storage
     .from(STORAGE_BUCKET)
-    .upload(storagePath, buffer, { contentType: file.type || "application/octet-stream" });
-  if (uploadError) {
-    throw new Error(`Upload failed: ${uploadError.message}`);
+    .createSignedUploadUrl(storagePath);
+  if (error || !data) {
+    throw new Error(`Could not prepare an upload slot: ${error?.message ?? "unknown error"}`);
   }
 
+  return { storagePath, token: data.token, fileType };
+}
+
+export async function processUploadedMaterial(
+  tutorTopicId: string,
+  storagePath: string,
+  fileName: string,
+  fileType: MaterialType,
+) {
+  await requireManager(tutorTopicId);
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage.from(STORAGE_BUCKET).download(storagePath);
+  if (error || !data) {
+    throw new Error("Could not download the uploaded file from storage.");
+  }
+  const buffer = Buffer.from(await data.arrayBuffer());
+
   const material = await prisma.tutorMaterial.create({
-    data: { tutorTopicId, fileName: file.name, storagePath, fileType, status: "PENDING" },
+    data: { tutorTopicId, fileName, storagePath, fileType, status: "PENDING" },
   });
 
   await processMaterial(material.id, buffer, fileType);
