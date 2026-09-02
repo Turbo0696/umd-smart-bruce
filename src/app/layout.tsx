@@ -102,7 +102,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <main className="flex flex-1 flex-col">{children}</main>
         <footer className="border-t border-zinc-200 py-6 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-500">
           <div className="mx-auto grid w-full max-w-5xl grid-cols-1 items-center gap-3 px-6 text-center sm:grid-cols-3 sm:text-left">
-            <p>Dr. Wayne Fu &amp; Dr. Hung-Chun Su</p>
+            <p>Dr. Wayne Fu &amp; Dr. Hung-Chung Su</p>
             <Image
               src="/images/umd-shield-transparent.png"
               alt="University of Michigan-Dearborn shield"
