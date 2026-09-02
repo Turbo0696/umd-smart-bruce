@@ -80,15 +80,21 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </nav>
         </header>
         <main className="flex flex-1 flex-col">{children}</main>
-        <footer className="flex flex-col items-center gap-2 border-t border-zinc-200 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-500">
-          <Image
-            src="/images/umd-shield.png"
-            alt=""
-            width={28}
-            height={28}
-          />
-          Bruce, the smart goose — built for University of Michigan-Dearborn
-          College of Business.
+        <footer className="border-t border-zinc-200 py-6 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-500">
+          <div className="mx-auto grid w-full max-w-5xl grid-cols-1 items-center gap-3 px-6 text-center sm:grid-cols-3 sm:text-left">
+            <p>Dr. Wayne Fu &amp; Dr. Hung-Chun Su</p>
+            <Image
+              src="/images/umd-shield-transparent.png"
+              alt="University of Michigan-Dearborn shield"
+              width={40}
+              height={32}
+              className="mx-auto"
+            />
+            <p className="sm:text-right">
+              Bruce, the smart goose — built for University of
+              Michigan-Dearborn College of Business.
+            </p>
+          </div>
         </footer>
       </body>
     </html>
