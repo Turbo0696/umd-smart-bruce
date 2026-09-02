@@ -120,7 +120,7 @@ console.log("Seeded game: newsvendor-solo");
 await prisma.game.upsert({
   where: { slug: "fish-banks" },
   update: {
-    name: "Fish Banks (Classroom)",
+    name: "Fish Banks",
     description:
       "MIT's classic fishery simulation: teams run competing fishing companies drawing from two shared, regenerating fish stocks. Fish it too hard and the stock collapses for everyone — the tragedy of the commons in action.",
     topicId: decisionSciences.id,
@@ -128,7 +128,7 @@ await prisma.game.upsert({
   },
   create: {
     slug: "fish-banks",
-    name: "Fish Banks (Classroom)",
+    name: "Fish Banks",
     description:
       "MIT's classic fishery simulation: teams run competing fishing companies drawing from two shared, regenerating fish stocks. Fish it too hard and the stock collapses for everyone — the tragedy of the commons in action.",
     topicId: decisionSciences.id,
@@ -142,7 +142,7 @@ await prisma.game.upsert({
   update: {
     name: "Fish Banks (Solo vs. AI)",
     description:
-      "Same MIT fishery simulation, single-player: run your own fishing company against three AI-controlled competitors, all drawing from the same shared stock.",
+      "MIT's classic fishery simulation in single-player mode: run your own fishing company against three AI-controlled competitors, all drawing from the same shared stock.",
     topicId: decisionSciences.id,
     category: "SINGLE_PLAYER",
   },
@@ -150,7 +150,7 @@ await prisma.game.upsert({
     slug: "fish-banks-solo",
     name: "Fish Banks (Solo vs. AI)",
     description:
-      "Same MIT fishery simulation, single-player: run your own fishing company against three AI-controlled competitors, all drawing from the same shared stock.",
+      "MIT's classic fishery simulation in single-player mode: run your own fishing company against three AI-controlled competitors, all drawing from the same shared stock.",
     topicId: decisionSciences.id,
     category: "SINGLE_PLAYER",
   },
