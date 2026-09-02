@@ -1,15 +1,12 @@
-import type { ComponentType } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { listTopics } from "@/lib/topics";
-import { DecisionTreeIcon, SupplyChainIcon } from "@/components/TopicIcons";
-
-const TOPIC_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  "decision-sciences": DecisionTreeIcon,
-  "supply-chain-management": SupplyChainIcon,
-};
+import { prisma } from "@/lib/prisma";
 
 export default async function Home() {
-  const topics = await listTopics();
+  const tutors = await prisma.tutorTopic.findMany({
+    include: { topic: true, course: true },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="flex flex-1 flex-col">
@@ -41,30 +38,39 @@ export default async function Home() {
 
       <section className="mx-auto w-full max-w-5xl px-6 pb-16">
         <h2 className="mb-6 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          Topics
+          AI Tutors
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {topics.map((topic) => {
-            const Icon = TOPIC_ICONS[topic.slug];
-            return (
+        {tutors.length === 0 ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-500">
+            No tutors have been created yet.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {tutors.map((t) => (
               <Link
-                key={topic.slug}
-                href={`/topics/${topic.slug}`}
-                className="flex items-start justify-between gap-4 rounded-lg border border-zinc-200 p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
+                key={t.id}
+                href={`/tutor/${t.id}`}
+                className="flex items-center gap-4 rounded-lg border border-zinc-200 p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
               >
+                <Image
+                  src="/images/bruce-tutor.png"
+                  alt=""
+                  width={500}
+                  height={530}
+                  className="h-24 w-auto shrink-0"
+                />
                 <div>
                   <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                    {topic.name}
+                    {t.name}
                   </h3>
                   <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    {topic.description}
+                    {t.topic ? t.topic.name : t.course?.name}
                   </p>
                 </div>
-                {Icon && <Icon />}
               </Link>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

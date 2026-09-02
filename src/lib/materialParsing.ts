@@ -21,9 +21,19 @@ export async function extractText(
   }
 
   if (fileType === "PDF") {
-    const pdf = await getDocumentProxy(new Uint8Array(buffer));
-    const { text } = await extractPdfText(pdf, { mergePages: true });
-    return text;
+    try {
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      const { text } = await extractPdfText(pdf, { mergePages: true });
+      return text;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/root reference|xref|invalid pdf/i.test(message)) {
+        throw new Error(
+          "This PDF's internal structure looks corrupted or non-standard and can't be read. Try opening it and using \"Save As\" (or \"Print > Save as PDF\") to re-export a clean copy, or upload it as .pptx/.docx instead.",
+        );
+      }
+      throw err;
+    }
   }
 
   // node-pptx-parser only accepts a file path, not a buffer — Vercel's
