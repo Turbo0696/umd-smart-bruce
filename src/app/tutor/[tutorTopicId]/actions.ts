@@ -141,6 +141,29 @@ export async function processUploadedMaterial(
   revalidatePath(`/tutor/${tutorTopicId}`);
 }
 
+// Same authorization as the materials controls above (admin, this
+// course's instructor, or — for a topic-bound tutor — any
+// instructor/admin): whoever can manage a tutor's materials can also
+// fix its name or rewrite its system prompt after creation.
+export async function updateTutorTopic(tutorTopicId: string, formData: FormData) {
+  await requireManager(tutorTopicId);
+
+  const name = String(formData.get("name") ?? "").trim();
+  const systemPrompt = String(formData.get("systemPrompt") ?? "").trim();
+
+  if (!name) throw new Error("Tutor name is required.");
+  if (!systemPrompt) throw new Error("System prompt is required.");
+
+  await prisma.tutorTopic.update({
+    where: { id: tutorTopicId },
+    data: { name, systemPrompt },
+  });
+
+  revalidatePath(`/tutor/${tutorTopicId}`);
+  revalidatePath("/tutors");
+  revalidatePath("/");
+}
+
 export async function reindexMaterial(tutorTopicId: string, materialId: string) {
   await requireManager(tutorTopicId);
 

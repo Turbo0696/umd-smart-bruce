@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DeleteTutorButton } from "./DeleteTutorButton";
+import { EditTutorForm } from "./EditTutorForm";
 import { MaterialsManager } from "./MaterialsManager";
 import { TutorChat } from "./TutorChat";
 
@@ -75,6 +76,10 @@ export default async function TutorPage(props: PageProps<"/tutor/[tutorTopicId]"
           </>
         )}
       </p>
+
+      {canManage && (
+        <EditTutorForm tutorTopicId={tutor.id} name={tutor.name} systemPrompt={tutor.systemPrompt} />
+      )}
 
       {canManage && <MaterialsManager tutorTopicId={tutor.id} materials={tutor.materials} />}
 
