@@ -155,7 +155,9 @@ export async function updateTutorTopic(tutorTopicId: string, formData: FormData)
   const maizeyProjectId = String(formData.get("maizeyProjectId") ?? "").trim() || undefined;
 
   if (!name) throw new Error("Tutor name is required.");
-  if (!systemPrompt) throw new Error("System prompt is required.");
+  if (provider === "CUSTOM_RAG" && !systemPrompt) {
+    throw new Error("System prompt is required for a custom-materials tutor.");
+  }
   if (provider === "MAIZEY" && !maizeyProjectId) {
     throw new Error("A Maizey project ID is required for a Maizey-backed tutor.");
   }
@@ -164,7 +166,7 @@ export async function updateTutorTopic(tutorTopicId: string, formData: FormData)
     where: { id: tutorTopicId },
     data: {
       name,
-      systemPrompt,
+      systemPrompt: provider === "CUSTOM_RAG" ? systemPrompt : null,
       provider,
       maizeyProjectId: provider === "MAIZEY" ? maizeyProjectId : null,
     },
@@ -323,6 +325,10 @@ export async function sendMessage(tutorTopicId: string, content: string) {
       step = "ask-maizey";
       reply = await sendMaizeyMessage(tutor.maizeyProjectId, conversationPk, trimmed);
     } else {
+      if (!tutor.systemPrompt) {
+        throw new Error("This tutor has no system prompt configured.");
+      }
+
       step = "retrieve-context";
       const context = await retrieveContext(tutorTopicId, trimmed);
       const systemPrompt = renderSystemPrompt(tutor.systemPrompt, { context, question: trimmed });

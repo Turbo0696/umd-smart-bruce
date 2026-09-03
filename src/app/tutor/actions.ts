@@ -24,7 +24,9 @@ export async function createTutorTopic(formData: FormData) {
   const maizeyProjectId = String(formData.get("maizeyProjectId") ?? "").trim() || undefined;
 
   if (!name) throw new Error("Tutor name is required.");
-  if (!systemPrompt) throw new Error("System prompt is required.");
+  if (provider === "CUSTOM_RAG" && !systemPrompt) {
+    throw new Error("System prompt is required for a custom-materials tutor.");
+  }
   if (!topicId && !courseId) {
     throw new Error("A tutor must be tied to a topic or a course.");
   }
@@ -46,7 +48,7 @@ export async function createTutorTopic(formData: FormData) {
   const tutor = await prisma.tutorTopic.create({
     data: {
       name,
-      systemPrompt,
+      systemPrompt: provider === "CUSTOM_RAG" ? systemPrompt : null,
       topicId,
       courseId,
       provider,

@@ -37,13 +37,15 @@ export function CreateTutorForm({
         />
       </label>
 
-      <textarea
-        name="systemPrompt"
-        placeholder="System prompt / persona instructions"
-        required
-        rows={6}
-        className={inputClass}
-      />
+      {provider === "CUSTOM_RAG" && (
+        <textarea
+          name="systemPrompt"
+          placeholder="System prompt / persona instructions"
+          required
+          rows={6}
+          className={inputClass}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-sm text-zinc-600 dark:text-zinc-400">

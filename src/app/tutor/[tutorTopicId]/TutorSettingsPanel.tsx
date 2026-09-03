@@ -29,7 +29,7 @@ export function TutorSettingsPanel({
 }: {
   tutorTopicId: string;
   name: string;
-  systemPrompt: string;
+  systemPrompt: string | null;
   provider: "CUSTOM_RAG" | "MAIZEY";
   maizeyProjectId: string | null;
   materials: Material[];

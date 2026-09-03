@@ -454,7 +454,9 @@ model TutorTopic {
   course          Course?       @relation(fields: [courseId], references: [id])
   courseId        String?
   name            String
-  systemPrompt    String
+  // Required for CUSTOM_RAG (it's what renderSystemPrompt uses); left
+  // null for MAIZEY — the persona lives in the Maizey project itself.
+  systemPrompt    String?
   provider        TutorProvider @default(CUSTOM_RAG)
   // Set only when provider = MAIZEY. The id of an existing Maizey
   // "Project" (its knowledge base lives there, managed in Maizey's own

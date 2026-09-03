@@ -16,7 +16,7 @@ export function EditTutorForm({
 }: {
   tutorTopicId: string;
   name: string;
-  systemPrompt: string;
+  systemPrompt: string | null;
   provider: "CUSTOM_RAG" | "MAIZEY";
   maizeyProjectId: string | null;
 }) {
@@ -55,16 +55,18 @@ export function EditTutorForm({
         <input name="name" defaultValue={name} required className={inputClass} />
       </label>
 
-      <label className={labelClass}>
-        System prompt / persona instructions
-        <textarea
-          name="systemPrompt"
-          defaultValue={systemPrompt}
-          required
-          rows={10}
-          className={inputClass}
-        />
-      </label>
+      {provider === "CUSTOM_RAG" && (
+        <label className={labelClass}>
+          System prompt / persona instructions
+          <textarea
+            name="systemPrompt"
+            defaultValue={systemPrompt ?? ""}
+            required
+            rows={10}
+            className={inputClass}
+          />
+        </label>
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-sm text-zinc-600 dark:text-zinc-400">
