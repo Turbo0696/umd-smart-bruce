@@ -87,6 +87,7 @@ export default async function TutorPage(props: PageProps<"/tutor/[tutorTopicId]"
           systemPrompt={tutor.systemPrompt}
           provider={tutor.provider}
           maizeyProjectId={tutor.maizeyProjectId}
+          hasMaizeyApiToken={Boolean(tutor.maizeyApiToken)}
           materials={tutor.materials}
           isAdmin={isAdmin}
         />

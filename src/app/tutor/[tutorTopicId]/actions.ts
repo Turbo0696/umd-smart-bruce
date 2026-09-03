@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { askTutor } from "@/lib/tutor";
 import { embedAndStoreChunks, renderSystemPrompt, retrieveContext } from "@/lib/tutorRag";
 import { getOrCreateMaizeyConversation, sendMaizeyMessage } from "@/lib/maizey";
+import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
 // NOTE: maxDuration for this route lives in ./page.tsx, not here. A
 // "use server" file may only export async functions — a plain constant
@@ -153,6 +154,9 @@ export async function updateTutorTopic(tutorTopicId: string, formData: FormData)
   const systemPrompt = String(formData.get("systemPrompt") ?? "").trim();
   const provider = formData.get("provider") === "MAIZEY" ? "MAIZEY" : "CUSTOM_RAG";
   const maizeyProjectId = String(formData.get("maizeyProjectId") ?? "").trim() || undefined;
+  // Blank means "keep the current token" (EditTutorForm never echoes
+  // the real value back, so there's nothing meaningful to prefill).
+  const maizeyApiTokenInput = String(formData.get("maizeyApiToken") ?? "").trim() || undefined;
 
   if (!name) throw new Error("Tutor name is required.");
   if (provider === "CUSTOM_RAG" && !systemPrompt) {
@@ -162,6 +166,24 @@ export async function updateTutorTopic(tutorTopicId: string, formData: FormData)
     throw new Error("A Maizey project ID is required for a Maizey-backed tutor.");
   }
 
+  let maizeyApiToken: string | null | undefined;
+  if (provider === "MAIZEY") {
+    if (maizeyApiTokenInput) {
+      maizeyApiToken = encryptSecret(maizeyApiTokenInput);
+    } else {
+      const existing = await prisma.tutorTopic.findUnique({
+        where: { id: tutorTopicId },
+        select: { maizeyApiToken: true },
+      });
+      if (!existing?.maizeyApiToken) {
+        throw new Error("A Maizey API token is required for a Maizey-backed tutor.");
+      }
+      // Leave it as-is (undefined = don't touch the column on update).
+    }
+  } else {
+    maizeyApiToken = null;
+  }
+
   await prisma.tutorTopic.update({
     where: { id: tutorTopicId },
     data: {
@@ -169,6 +191,7 @@ export async function updateTutorTopic(tutorTopicId: string, formData: FormData)
       systemPrompt: provider === "CUSTOM_RAG" ? systemPrompt : null,
       provider,
       maizeyProjectId: provider === "MAIZEY" ? maizeyProjectId : null,
+      maizeyApiToken,
     },
   });
 
@@ -315,15 +338,21 @@ export async function sendMessage(tutorTopicId: string, content: string) {
         throw new Error("This tutor is set to Maizey but has no project configured.");
       }
 
+      if (!tutor.maizeyApiToken) {
+        throw new Error("This tutor is set to Maizey but has no API token configured.");
+      }
+      const maizeyApiToken = decryptSecret(tutor.maizeyApiToken);
+
       step = "maizey-conversation";
       const conversationPk = await getOrCreateMaizeyConversation(
         tutorTopicId,
         profile.id,
         tutor.maizeyProjectId,
+        maizeyApiToken,
       );
 
       step = "ask-maizey";
-      reply = await sendMaizeyMessage(tutor.maizeyProjectId, conversationPk, trimmed);
+      reply = await sendMaizeyMessage(tutor.maizeyProjectId, conversationPk, trimmed, maizeyApiToken);
     } else {
       if (!tutor.systemPrompt) {
         throw new Error("This tutor has no system prompt configured.");

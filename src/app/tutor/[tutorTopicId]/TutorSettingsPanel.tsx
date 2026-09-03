@@ -24,6 +24,7 @@ export function TutorSettingsPanel({
   systemPrompt,
   provider,
   maizeyProjectId,
+  hasMaizeyApiToken,
   materials,
   isAdmin,
 }: {
@@ -32,6 +33,7 @@ export function TutorSettingsPanel({
   systemPrompt: string | null;
   provider: "CUSTOM_RAG" | "MAIZEY";
   maizeyProjectId: string | null;
+  hasMaizeyApiToken: boolean;
   materials: Material[];
   isAdmin: boolean;
 }) {
@@ -69,6 +71,7 @@ export function TutorSettingsPanel({
           systemPrompt={systemPrompt}
           provider={provider}
           maizeyProjectId={maizeyProjectId}
+          hasMaizeyApiToken={hasMaizeyApiToken}
         />
       </div>
 

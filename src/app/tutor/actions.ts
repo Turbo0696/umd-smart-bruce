@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptSecret } from "@/lib/crypto";
 
 // Shared by the "Create a tutor" forms on both /topics/[slug] (sets
 // topicId) and /courses/[id] (sets courseId) — a tutor binds to
@@ -22,6 +23,7 @@ export async function createTutorTopic(formData: FormData) {
   // src/lib/maizey.ts.
   const provider = formData.get("provider") === "MAIZEY" ? "MAIZEY" : "CUSTOM_RAG";
   const maizeyProjectId = String(formData.get("maizeyProjectId") ?? "").trim() || undefined;
+  const maizeyApiTokenInput = String(formData.get("maizeyApiToken") ?? "").trim() || undefined;
 
   if (!name) throw new Error("Tutor name is required.");
   if (provider === "CUSTOM_RAG" && !systemPrompt) {
@@ -35,6 +37,9 @@ export async function createTutorTopic(formData: FormData) {
   }
   if (provider === "MAIZEY" && !maizeyProjectId) {
     throw new Error("A Maizey project ID is required for a Maizey-backed tutor.");
+  }
+  if (provider === "MAIZEY" && !maizeyApiTokenInput) {
+    throw new Error("A Maizey API token is required for a Maizey-backed tutor.");
   }
 
   if (courseId) {
@@ -53,6 +58,8 @@ export async function createTutorTopic(formData: FormData) {
       courseId,
       provider,
       maizeyProjectId: provider === "MAIZEY" ? maizeyProjectId : undefined,
+      maizeyApiToken:
+        provider === "MAIZEY" && maizeyApiTokenInput ? encryptSecret(maizeyApiTokenInput) : undefined,
     },
   });
 

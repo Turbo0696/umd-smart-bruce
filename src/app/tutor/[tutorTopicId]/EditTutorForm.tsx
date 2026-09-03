@@ -13,12 +13,17 @@ export function EditTutorForm({
   systemPrompt,
   provider: initialProvider,
   maizeyProjectId,
+  hasMaizeyApiToken,
 }: {
   tutorTopicId: string;
   name: string;
   systemPrompt: string | null;
   provider: "CUSTOM_RAG" | "MAIZEY";
   maizeyProjectId: string | null;
+  // Whether a token is already stored — never the token itself, which
+  // is encrypted at rest and never sent back to the client. Leaving
+  // the token field blank on save means "keep the current one".
+  hasMaizeyApiToken: boolean;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -55,19 +60,10 @@ export function EditTutorForm({
         <input name="name" defaultValue={name} required className={inputClass} />
       </label>
 
-      {provider === "CUSTOM_RAG" && (
-        <label className={labelClass}>
-          System prompt / persona instructions
-          <textarea
-            name="systemPrompt"
-            defaultValue={systemPrompt ?? ""}
-            required
-            rows={10}
-            className={inputClass}
-          />
-        </label>
-      )}
-
+      {/* Knowledge base comes before the system prompt: a Maizey-backed
+          tutor has no use for one (its persona lives in the Maizey
+          project itself), so picking the provider first decides whether
+          the prompt field even shows up. */}
       <div className="flex flex-col gap-2">
         <span className="text-sm text-zinc-600 dark:text-zinc-400">
           Knowledge base
@@ -95,22 +91,48 @@ export function EditTutorForm({
           </label>
         </div>
         {provider === "MAIZEY" ? (
-          <label className={labelClass}>
-            Maizey project ID
-            <input
-              name="maizeyProjectId"
-              defaultValue={maizeyProjectId ?? ""}
-              placeholder="e.g. 42"
-              required
-              className={inputClass}
-            />
-            <span className="text-xs text-zinc-500 dark:text-zinc-500">
-              Chat forwards straight to that Maizey project instead of running
-              retrieval over materials uploaded here.
-            </span>
-          </label>
+          <div className="flex flex-col gap-3">
+            <label className={labelClass}>
+              Maizey project ID
+              <input
+                name="maizeyProjectId"
+                defaultValue={maizeyProjectId ?? ""}
+                placeholder="e.g. 077506b2-d8d2-4724-877c-2e0b5f2261b5"
+                required
+                className={inputClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Your Maizey API token
+              <input
+                name="maizeyApiToken"
+                type="password"
+                placeholder={hasMaizeyApiToken ? "•••••••• (leave blank to keep current)" : "Paste your own Maizey API token"}
+                required={!hasMaizeyApiToken}
+                autoComplete="off"
+                className={inputClass}
+              />
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">
+                Maizey accounts are per-instructor — this has to be your own
+                token. Stored encrypted and never shown back here.
+              </span>
+            </label>
+          </div>
         ) : null}
       </div>
+
+      {provider === "CUSTOM_RAG" && (
+        <label className={labelClass}>
+          System prompt / persona instructions
+          <textarea
+            name="systemPrompt"
+            defaultValue={systemPrompt ?? ""}
+            required
+            rows={10}
+            className={inputClass}
+          />
+        </label>
+      )}
 
       <div className="flex items-center gap-3">
         <button

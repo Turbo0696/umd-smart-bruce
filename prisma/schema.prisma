@@ -463,6 +463,12 @@ model TutorTopic {
   // UI — not through us) that this tutor's chat forwards to instead of
   // running our own retrieval.
   maizeyProjectId String?
+  // Encrypted (AES-256-GCM, see src/lib/crypto.ts) Maizey API token
+  // belonging to *this tutor's* instructor. Each instructor has their
+  // own separate Maizey account — there is no single shared token that
+  // can reach every instructor's projects, unlike TUTOR_API_KEY for
+  // our own gateway.
+  maizeyApiToken  String?
   createdAt       DateTime      @default(now())
 
   materials           TutorMaterial[]

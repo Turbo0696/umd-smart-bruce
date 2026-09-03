@@ -16,17 +16,21 @@ const MAIZEY_BASE_URL = "https://umgpt.umich.edu/maizey/api";
 const MESSAGE_ATTEMPT_TIMEOUT_MS = 48_000;
 const CONVERSATION_ATTEMPT_TIMEOUT_MS = 15_000;
 
-function authHeaders() {
+// Each instructor has their own Maizey account — there's no single
+// shared token that can reach every instructor's projects, unlike
+// TUTOR_API_KEY for our own gateway. The caller passes the tutor's own
+// (decrypted) token in.
+function authHeaders(apiToken: string) {
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${process.env.MAIZEY_API_TOKEN}`,
+    Authorization: `Bearer ${apiToken}`,
   };
 }
 
-async function createMaizeyConversation(projectPk: string): Promise<string> {
+async function createMaizeyConversation(projectPk: string, apiToken: string): Promise<string> {
   const res = await fetchWithRetry(
     `${MAIZEY_BASE_URL}/projects/${projectPk}/conversation/`,
-    { method: "POST", headers: authHeaders(), body: JSON.stringify({}) },
+    { method: "POST", headers: authHeaders(apiToken), body: JSON.stringify({}) },
     { attempts: 2, timeoutMs: CONVERSATION_ATTEMPT_TIMEOUT_MS },
   );
 
@@ -50,13 +54,14 @@ export async function getOrCreateMaizeyConversation(
   tutorTopicId: string,
   userId: string,
   projectPk: string,
+  apiToken: string,
 ): Promise<string> {
   const existing = await prisma.maizeyConversation.findUnique({
     where: { tutorTopicId_userId: { tutorTopicId, userId } },
   });
   if (existing) return existing.conversationPk;
 
-  const conversationPk = await createMaizeyConversation(projectPk);
+  const conversationPk = await createMaizeyConversation(projectPk, apiToken);
 
   // Two requests racing here (double-submit) would violate the
   // @@unique([tutorTopicId, userId]) constraint on the second insert —
@@ -81,10 +86,11 @@ export async function sendMaizeyMessage(
   projectPk: string,
   conversationPk: string,
   query: string,
+  apiToken: string,
 ): Promise<string> {
   const res = await fetchWithRetry(
     `${MAIZEY_BASE_URL}/projects/${projectPk}/conversation/${conversationPk}/messages/`,
-    { method: "POST", headers: authHeaders(), body: JSON.stringify({ query }) },
+    { method: "POST", headers: authHeaders(apiToken), body: JSON.stringify({ query }) },
     { attempts: 2, timeoutMs: MESSAGE_ATTEMPT_TIMEOUT_MS },
   );
 

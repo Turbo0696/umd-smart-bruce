@@ -37,16 +37,10 @@ export function CreateTutorForm({
         />
       </label>
 
-      {provider === "CUSTOM_RAG" && (
-        <textarea
-          name="systemPrompt"
-          placeholder="System prompt / persona instructions"
-          required
-          rows={6}
-          className={inputClass}
-        />
-      )}
-
+      {/* Knowledge base comes before the system prompt: a Maizey-backed
+          tutor has no use for one (its persona lives in the Maizey
+          project itself), so picking the provider first decides whether
+          the prompt field even shows up. */}
       <div className="flex flex-col gap-2">
         <span className="text-sm text-zinc-600 dark:text-zinc-400">
           Knowledge base
@@ -74,21 +68,46 @@ export function CreateTutorForm({
           </label>
         </div>
         {provider === "MAIZEY" ? (
-          <label className={labelClass}>
-            Maizey project ID
-            <input
-              name="maizeyProjectId"
-              placeholder="e.g. 42"
-              required
-              className={inputClass}
-            />
-            <span className="text-xs text-zinc-500 dark:text-zinc-500">
-              Chat forwards straight to that Maizey project — its own knowledge
-              base and retrieval, not materials uploaded here.
-            </span>
-          </label>
+          <div className="flex flex-col gap-3">
+            <label className={labelClass}>
+              Maizey project ID
+              <input
+                name="maizeyProjectId"
+                placeholder="e.g. 077506b2-d8d2-4724-877c-2e0b5f2261b5"
+                required
+                className={inputClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Your Maizey API token
+              <input
+                name="maizeyApiToken"
+                type="password"
+                placeholder="Paste your own Maizey API token"
+                required
+                autoComplete="off"
+                className={inputClass}
+              />
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">
+                Maizey accounts are per-instructor — this has to be your own
+                token, not a shared one. Stored encrypted; chat forwards
+                straight to that project instead of running our own
+                retrieval or materials.
+              </span>
+            </label>
+          </div>
         ) : null}
       </div>
+
+      {provider === "CUSTOM_RAG" && (
+        <textarea
+          name="systemPrompt"
+          placeholder="System prompt / persona instructions"
+          required
+          rows={6}
+          className={inputClass}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-sm text-zinc-600 dark:text-zinc-400">
