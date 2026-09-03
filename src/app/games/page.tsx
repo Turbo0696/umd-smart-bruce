@@ -8,6 +8,7 @@ import {
   BeerMugIcon,
   DiceIcon,
   FishBoatIcon,
+  HandshakeIcon,
   NewspaperIcon,
   TrendChartIcon,
 } from "@/components/GameIcons";
@@ -15,6 +16,7 @@ import {
 const GAME_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "dice-simulator": DiceIcon,
   "random-babies": BabyFaceIcon,
+  "prisoners-dilemma": HandshakeIcon,
   "beer-game": BeerMugIcon,
   newsvendor: NewspaperIcon,
   "newsvendor-solo": NewspaperIcon,

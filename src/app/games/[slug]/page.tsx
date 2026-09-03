@@ -12,6 +12,7 @@ import { FishBanksSoloGame } from "./FishBanksSoloGame";
 import { ForecastingGame } from "./ForecastingGame";
 import { NewsvendorLanding } from "./NewsvendorLanding";
 import { NewsvendorSoloGame } from "./NewsvendorSoloGame";
+import { PrisonersDilemmaSimulator } from "./PrisonersDilemmaSimulator";
 import { RandomBabiesSimulator } from "./RandomBabiesSimulator";
 
 export default async function GamePage(props: PageProps<"/games/[slug]">) {
@@ -157,6 +158,9 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
   }
   if (slug === "random-babies") {
     return <RandomBabiesSimulator />;
+  }
+  if (slug === "prisoners-dilemma") {
+    return <PrisonersDilemmaSimulator />;
   }
 
   notFound();

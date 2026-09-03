@@ -131,6 +131,35 @@ export function FishBoatIcon({ className = "" }: IconProps) {
   );
 }
 
+export function HandshakeIcon({ className = "" }: IconProps) {
+  return (
+    <div className={`${BADGE} ${className}`}>
+      <svg width={40} height={40} viewBox="0 0 40 40" role="img" aria-hidden="true">
+        <path
+          d="M 4 20 L 15 14 L 20 17 L 15 22 Z"
+          className="fill-blue-50 stroke-blue-500 dark:fill-blue-950 dark:stroke-blue-400"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 36 20 L 25 14 L 20 17 L 25 22 Z"
+          className="fill-rose-50 stroke-rose-500 dark:fill-rose-950 dark:stroke-rose-400"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
+        <circle
+          cx="20"
+          cy="18"
+          r="3"
+          className="fill-zinc-100 stroke-zinc-400 dark:fill-zinc-800 dark:stroke-zinc-500"
+          strokeWidth={1.2}
+        />
+        <line x1="6" y1="27" x2="34" y2="27" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1.2} />
+      </svg>
+    </div>
+  );
+}
+
 export function TrendChartIcon({ className = "" }: IconProps) {
   return (
     <div className={`${BADGE} ${className}`}>

@@ -197,4 +197,24 @@ await prisma.game.upsert({
 });
 console.log("Seeded game: random-babies");
 
+await prisma.game.upsert({
+  where: { slug: "prisoners-dilemma" },
+  update: {
+    name: "Prisoner's Dilemma + Loners",
+    description:
+      "The classic dilemma with a third option: abstain for a safe, modest payoff. Play a match against a scripted AI opponent, or watch a whole population of cooperators, defectors, and abstainers evolve on a grid.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+  create: {
+    slug: "prisoners-dilemma",
+    name: "Prisoner's Dilemma + Loners",
+    description:
+      "The classic dilemma with a third option: abstain for a safe, modest payoff. Play a match against a scripted AI opponent, or watch a whole population of cooperators, defectors, and abstainers evolve on a grid.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+});
+console.log("Seeded game: prisoners-dilemma");
+
 await prisma.$disconnect();
