@@ -12,6 +12,7 @@ export function CreateTutorForm({
   instructorCourses: { id: string; name: string; term: string }[];
 }) {
   const [bindTo, setBindTo] = useState<"topic" | "course">("topic");
+  const [provider, setProvider] = useState<"CUSTOM_RAG" | "MAIZEY">("CUSTOM_RAG");
 
   const inputClass =
     "rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
@@ -43,6 +44,49 @@ export function CreateTutorForm({
         rows={6}
         className={inputClass}
       />
+
+      <div className="flex flex-col gap-2">
+        <span className="text-sm text-zinc-600 dark:text-zinc-400">
+          Knowledge base
+        </span>
+        <div className="flex gap-4 text-sm">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="radio"
+              name="provider"
+              value="CUSTOM_RAG"
+              checked={provider === "CUSTOM_RAG"}
+              onChange={() => setProvider("CUSTOM_RAG")}
+            />
+            Upload materials here
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input
+              type="radio"
+              name="provider"
+              value="MAIZEY"
+              checked={provider === "MAIZEY"}
+              onChange={() => setProvider("MAIZEY")}
+            />
+            Use an existing Maizey project
+          </label>
+        </div>
+        {provider === "MAIZEY" ? (
+          <label className={labelClass}>
+            Maizey project ID
+            <input
+              name="maizeyProjectId"
+              placeholder="e.g. 42"
+              required
+              className={inputClass}
+            />
+            <span className="text-xs text-zinc-500 dark:text-zinc-500">
+              Chat forwards straight to that Maizey project — its own knowledge
+              base and retrieval, not materials uploaded here.
+            </span>
+          </label>
+        ) : null}
+      </div>
 
       <div className="flex flex-col gap-2">
         <span className="text-sm text-zinc-600 dark:text-zinc-400">

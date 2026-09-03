@@ -11,15 +11,20 @@ export function EditTutorForm({
   tutorTopicId,
   name,
   systemPrompt,
+  provider: initialProvider,
+  maizeyProjectId,
 }: {
   tutorTopicId: string;
   name: string;
   systemPrompt: string;
+  provider: "CUSTOM_RAG" | "MAIZEY";
+  maizeyProjectId: string | null;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [provider, setProvider] = useState(initialProvider);
 
   const inputClass =
     "rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
@@ -60,6 +65,50 @@ export function EditTutorForm({
           className={inputClass}
         />
       </label>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-sm text-zinc-600 dark:text-zinc-400">
+          Knowledge base
+        </span>
+        <div className="flex gap-4 text-sm">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="radio"
+              name="provider"
+              value="CUSTOM_RAG"
+              checked={provider === "CUSTOM_RAG"}
+              onChange={() => setProvider("CUSTOM_RAG")}
+            />
+            Materials uploaded here
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input
+              type="radio"
+              name="provider"
+              value="MAIZEY"
+              checked={provider === "MAIZEY"}
+              onChange={() => setProvider("MAIZEY")}
+            />
+            An existing Maizey project
+          </label>
+        </div>
+        {provider === "MAIZEY" ? (
+          <label className={labelClass}>
+            Maizey project ID
+            <input
+              name="maizeyProjectId"
+              defaultValue={maizeyProjectId ?? ""}
+              placeholder="e.g. 42"
+              required
+              className={inputClass}
+            />
+            <span className="text-xs text-zinc-500 dark:text-zinc-500">
+              Chat forwards straight to that Maizey project instead of running
+              retrieval over materials uploaded here.
+            </span>
+          </label>
+        ) : null}
+      </div>
 
       <div className="flex items-center gap-3">
         <button

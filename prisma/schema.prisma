@@ -34,6 +34,7 @@ model Profile {
   fishBanksSessions        FishBanksSession[]        @relation("FishBanksSessionInstructor")
   fishBanksParticipant     FishBanksParticipant[]
   chats                    ChatMessage[]
+  maizeyConversations      MaizeyConversation[]
 }
 
 model Topic {
@@ -437,18 +438,34 @@ model SoloNewsvendorAttempt {
 // (gated to its roster) — never both, enforced in the create action
 // rather than a DB constraint.
 
-model TutorTopic {
-  id           String   @id @default(uuid())
-  topic        Topic?   @relation(fields: [topicId], references: [id])
-  topicId      String?
-  course       Course?  @relation(fields: [courseId], references: [id])
-  courseId     String?
-  name         String
-  systemPrompt String
-  createdAt    DateTime @default(now())
+// Custom RAG (our own materials + pgvector retrieval) is the default.
+// Maizey forks the whole tutor out to a separate, already-existing Maizey
+// project: no materials of ours involved, no retrieval of ours involved —
+// see maizeyProjectId below and src/lib/maizey.ts.
+enum TutorProvider {
+  CUSTOM_RAG
+  MAIZEY
+}
 
-  materials TutorMaterial[]
-  messages  ChatMessage[]
+model TutorTopic {
+  id              String        @id @default(uuid())
+  topic           Topic?        @relation(fields: [topicId], references: [id])
+  topicId         String?
+  course          Course?       @relation(fields: [courseId], references: [id])
+  courseId        String?
+  name            String
+  systemPrompt    String
+  provider        TutorProvider @default(CUSTOM_RAG)
+  // Set only when provider = MAIZEY. The id of an existing Maizey
+  // "Project" (its knowledge base lives there, managed in Maizey's own
+  // UI — not through us) that this tutor's chat forwards to instead of
+  // running our own retrieval.
+  maizeyProjectId String?
+  createdAt       DateTime      @default(now())
+
+  materials           TutorMaterial[]
+  messages            ChatMessage[]
+  maizeyConversations MaizeyConversation[]
 }
 
 enum MaterialType {
@@ -507,4 +524,21 @@ model ChatMessage {
   role         ChatRole
   content      String
   createdAt    DateTime   @default(now())
+}
+
+// Maizey has no endpoint to list or resume a conversation — the pk it
+// hands back from POST .../conversation/ has to be remembered on our
+// side, one per (tutor, student) pair, so a student's second message
+// reuses the same conversation instead of starting a fresh one (and
+// losing prior turns on Maizey's side) every time.
+model MaizeyConversation {
+  id             String     @id @default(uuid())
+  tutorTopic     TutorTopic @relation(fields: [tutorTopicId], references: [id])
+  tutorTopicId   String
+  user           Profile    @relation(fields: [userId], references: [id])
+  userId         String
+  conversationPk String
+  createdAt      DateTime   @default(now())
+
+  @@unique([tutorTopicId, userId])
 }

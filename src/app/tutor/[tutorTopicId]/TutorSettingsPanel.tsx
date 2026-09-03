@@ -22,12 +22,16 @@ export function TutorSettingsPanel({
   tutorTopicId,
   name,
   systemPrompt,
+  provider,
+  maizeyProjectId,
   materials,
   isAdmin,
 }: {
   tutorTopicId: string;
   name: string;
   systemPrompt: string;
+  provider: "CUSTOM_RAG" | "MAIZEY";
+  maizeyProjectId: string | null;
   materials: Material[];
   isAdmin: boolean;
 }) {
@@ -59,12 +63,20 @@ export function TutorSettingsPanel({
       </div>
 
       <div className="p-5">
-        <EditTutorForm tutorTopicId={tutorTopicId} name={name} systemPrompt={systemPrompt} />
+        <EditTutorForm
+          tutorTopicId={tutorTopicId}
+          name={name}
+          systemPrompt={systemPrompt}
+          provider={provider}
+          maizeyProjectId={maizeyProjectId}
+        />
       </div>
 
-      <div className="p-5">
-        <MaterialsManager tutorTopicId={tutorTopicId} materials={materials} />
-      </div>
+      {provider === "CUSTOM_RAG" && (
+        <div className="p-5">
+          <MaterialsManager tutorTopicId={tutorTopicId} materials={materials} />
+        </div>
+      )}
 
       {isAdmin && (
         <div className="p-5">

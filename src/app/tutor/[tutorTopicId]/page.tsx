@@ -85,6 +85,8 @@ export default async function TutorPage(props: PageProps<"/tutor/[tutorTopicId]"
           tutorTopicId={tutor.id}
           name={tutor.name}
           systemPrompt={tutor.systemPrompt}
+          provider={tutor.provider}
+          maizeyProjectId={tutor.maizeyProjectId}
           materials={tutor.materials}
           isAdmin={isAdmin}
         />

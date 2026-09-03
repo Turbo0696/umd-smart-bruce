@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { askTutor } from "@/lib/tutor";
 import { embedAndStoreChunks, renderSystemPrompt, retrieveContext } from "@/lib/tutorRag";
+import { getOrCreateMaizeyConversation, sendMaizeyMessage } from "@/lib/maizey";
 
 // NOTE: maxDuration for this route lives in ./page.tsx, not here. A
 // "use server" file may only export async functions — a plain constant
@@ -150,13 +151,23 @@ export async function updateTutorTopic(tutorTopicId: string, formData: FormData)
 
   const name = String(formData.get("name") ?? "").trim();
   const systemPrompt = String(formData.get("systemPrompt") ?? "").trim();
+  const provider = formData.get("provider") === "MAIZEY" ? "MAIZEY" : "CUSTOM_RAG";
+  const maizeyProjectId = String(formData.get("maizeyProjectId") ?? "").trim() || undefined;
 
   if (!name) throw new Error("Tutor name is required.");
   if (!systemPrompt) throw new Error("System prompt is required.");
+  if (provider === "MAIZEY" && !maizeyProjectId) {
+    throw new Error("A Maizey project ID is required for a Maizey-backed tutor.");
+  }
 
   await prisma.tutorTopic.update({
     where: { id: tutorTopicId },
-    data: { name, systemPrompt },
+    data: {
+      name,
+      systemPrompt,
+      provider,
+      maizeyProjectId: provider === "MAIZEY" ? maizeyProjectId : null,
+    },
   });
 
   revalidatePath(`/tutor/${tutorTopicId}`);
@@ -293,22 +304,42 @@ export async function sendMessage(tutorTopicId: string, content: string) {
       data: { tutorTopicId, userId: profile.id, role: "USER", content: trimmed },
     });
 
-    step = "retrieve-context";
-    const context = await retrieveContext(tutorTopicId, trimmed);
-    const systemPrompt = renderSystemPrompt(tutor.systemPrompt, { context, question: trimmed });
+    // A Maizey-backed tutor forks out entirely here — its knowledge
+    // base is Maizey's own Project, not our MaterialChunk table, so
+    // none of our retrieval runs for it.
+    let reply: string;
+    if (tutor.provider === "MAIZEY") {
+      if (!tutor.maizeyProjectId) {
+        throw new Error("This tutor is set to Maizey but has no project configured.");
+      }
 
-    step = "load-history";
-    const history = await prisma.chatMessage.findMany({
-      where: { tutorTopicId, userId: profile.id },
-      orderBy: { createdAt: "asc" },
-    });
-    const turns = history.map((m) => ({
-      role: (m.role === "USER" ? "user" : "assistant") as "user" | "assistant",
-      content: m.content,
-    }));
+      step = "maizey-conversation";
+      const conversationPk = await getOrCreateMaizeyConversation(
+        tutorTopicId,
+        profile.id,
+        tutor.maizeyProjectId,
+      );
 
-    step = "ask-tutor";
-    const reply = await askTutor(systemPrompt, turns);
+      step = "ask-maizey";
+      reply = await sendMaizeyMessage(tutor.maizeyProjectId, conversationPk, trimmed);
+    } else {
+      step = "retrieve-context";
+      const context = await retrieveContext(tutorTopicId, trimmed);
+      const systemPrompt = renderSystemPrompt(tutor.systemPrompt, { context, question: trimmed });
+
+      step = "load-history";
+      const history = await prisma.chatMessage.findMany({
+        where: { tutorTopicId, userId: profile.id },
+        orderBy: { createdAt: "asc" },
+      });
+      const turns = history.map((m) => ({
+        role: (m.role === "USER" ? "user" : "assistant") as "user" | "assistant",
+        content: m.content,
+      }));
+
+      step = "ask-tutor";
+      reply = await askTutor(systemPrompt, turns);
+    }
 
     step = "save-assistant-message";
     await prisma.chatMessage.create({
