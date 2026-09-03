@@ -41,13 +41,56 @@ export function Nav({ profile }: { profile: NavProfile }) {
   return (
     <header className="relative border-b border-zinc-200 dark:border-zinc-800">
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-label={open ? "Close menu" : "Open menu"}
-        >
-          <HamburgerIcon open={open} />
-        </button>
+        {/* `relative` here (not on <header>) is what makes the popover
+            below anchor to the button itself — the button sits inside
+            this centered, max-w-5xl, px-6 nav, which on a wide screen
+            can start well to the right of the header's own left edge.
+            Anchoring to <header> instead put the popover under a
+            left-6 that had nothing to do with where the button was. */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-label={open ? "Close menu" : "Open menu"}
+          >
+            <HamburgerIcon open={open} />
+          </button>
+
+          {open && (
+            <>
+              {/* Invisible click-catcher: tapping anywhere outside the popover closes it. */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={close}
+                aria-hidden="true"
+              />
+              <div
+                className="absolute left-0 top-full z-50 mt-2 flex w-64 max-w-[85vw] flex-col gap-4 rounded-xl
+                           border border-zinc-200 bg-white p-4 text-sm font-medium text-zinc-600 shadow-xl
+                           dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+              >
+                <Link href="/" className={linkClass} onClick={close}>Home</Link>
+                <Link href="/topics" className={linkClass} onClick={close}>Topics</Link>
+                <Link href="/courses" className={linkClass} onClick={close}>Courses</Link>
+                <Link href="/games" className={linkClass} onClick={close}>Simulations &amp; games</Link>
+                {canManageTutors && (
+                  <Link href="/tutors" className={linkClass} onClick={close}>AI Tutors</Link>
+                )}
+                {isAdmin && (
+                  <Link href="/admin/users" className={linkClass} onClick={close}>Admin</Link>
+                )}
+                {profile ? (
+                  <div className="flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                    <span className="text-zinc-400 dark:text-zinc-500">{profile.name ?? profile.email}</span>
+                    <SignOutButton />
+                  </div>
+                ) : (
+                  <Link href="/login" className={linkClass} onClick={close}>Log in</Link>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         <Link
           href="/"
@@ -58,45 +101,6 @@ export function Nav({ profile }: { profile: NavProfile }) {
           Bruce, the smart goose
         </Link>
       </nav>
-
-      {open && (
-        <>
-          {/* Invisible click-catcher: tapping anywhere outside the popover closes it. */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={close}
-            aria-hidden="true"
-          />
-          {/* A small popover anchored directly under the hamburger/X button —
-              left-6 lines up with that button's position (px-6 on the nav
-              above), sized to its content rather than stretching across or
-              down the whole screen. */}
-          <div
-            className="absolute left-6 top-full z-50 mt-2 flex w-64 max-w-[85vw] flex-col gap-4 rounded-xl
-                       border border-zinc-200 bg-white p-4 text-sm font-medium text-zinc-600 shadow-xl
-                       dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
-          >
-            <Link href="/" className={linkClass} onClick={close}>Home</Link>
-            <Link href="/topics" className={linkClass} onClick={close}>Topics</Link>
-            <Link href="/courses" className={linkClass} onClick={close}>Courses</Link>
-            <Link href="/games" className={linkClass} onClick={close}>Simulations &amp; games</Link>
-            {canManageTutors && (
-              <Link href="/tutors" className={linkClass} onClick={close}>AI Tutors</Link>
-            )}
-            {isAdmin && (
-              <Link href="/admin/users" className={linkClass} onClick={close}>Admin</Link>
-            )}
-            {profile ? (
-              <div className="flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                <span className="text-zinc-400 dark:text-zinc-500">{profile.name ?? profile.email}</span>
-                <SignOutButton />
-              </div>
-            ) : (
-              <Link href="/login" className={linkClass} onClick={close}>Log in</Link>
-            )}
-          </div>
-        </>
-      )}
     </header>
   );
 }
