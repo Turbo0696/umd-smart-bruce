@@ -14,6 +14,8 @@
     "@prisma/client": "7.10.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
+    "@tailwindcss/typography": "^0.5.20",
+    "katex": "^0.18.5",
     "mammoth": "^1.12.2",
     "next": "16.3.4",
     "node-pptx-parser": "^1.0.1",
@@ -21,6 +23,10 @@
     "prisma": "7.10.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "unpdf": "^1.8.1"
   },
   "devDependencies": {

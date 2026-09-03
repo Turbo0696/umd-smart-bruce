@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { sendMessage } from "./actions";
+import { TutorMarkdown } from "./TutorMarkdown";
 
 type Msg = { role: "USER" | "ASSISTANT"; content: string };
 
@@ -79,15 +80,15 @@ export function TutorChat({
               key={i}
               className={`flex ${m.role === "USER" ? "justify-end" : "justify-start"}`}
             >
-              <p
-                className={`max-w-[80%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
+              <div
+                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
                   m.role === "USER"
-                    ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                    ? "whitespace-pre-wrap bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
                 }`}
               >
-                {m.content}
-              </p>
+                {m.role === "ASSISTANT" ? <TutorMarkdown content={m.content} /> : m.content}
+              </div>
             </div>
           ))
         )}

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
+@plugin "@tailwindcss/typography";
 
 /*
  * Actual colors live on elements via Tailwind's `dark:` variant (which
