@@ -4,11 +4,9 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { updateTutorTopic } from "./actions";
 
-// Gated by the caller to the same "can manage this tutor" audience as
-// MaterialsManager (see page.tsx's `canManage`) — admin, this course's
-// instructor, or any instructor/admin for a topic-bound tutor. Prior to
-// this, a tutor's name and system prompt were fixed at creation time
-// with no way to fix a typo or rework the persona/instructions later.
+// Rendered as one section inside TutorSettingsPanel, which supplies the
+// outer toggle, border, and spacing — this component only owns its own
+// form and save logic.
 export function EditTutorForm({
   tutorTopicId,
   name,
@@ -19,7 +17,6 @@ export function EditTutorForm({
   systemPrompt: string;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -44,33 +41,9 @@ export function EditTutorForm({
     }
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-6 self-start rounded-full border border-zinc-300 px-4 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-      >
-        Edit tutor settings
-      </button>
-    );
-  }
-
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="mt-6 flex flex-col gap-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800"
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Edit tutor settings</h2>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-        >
-          Close
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">General</h2>
 
       <label className={labelClass}>
         Name

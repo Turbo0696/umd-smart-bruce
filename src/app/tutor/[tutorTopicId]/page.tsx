@@ -3,10 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { DeleteTutorButton } from "./DeleteTutorButton";
-import { EditTutorForm } from "./EditTutorForm";
-import { MaterialsManager } from "./MaterialsManager";
 import { TutorChat } from "./TutorChat";
+import { TutorSettingsPanel } from "./TutorSettingsPanel";
 
 // Chat (sendMessage in ./actions.ts) chains an embeddings call and a
 // chat-completion call against a university-run gateway that can be
@@ -77,16 +75,20 @@ export default async function TutorPage(props: PageProps<"/tutor/[tutorTopicId]"
         )}
       </p>
 
+      {/* One panel behind a single toggle: renaming/rewriting the
+          prompt and managing materials are open to canManage; the
+          danger zone inside is further restricted to isAdmin — deleting
+          wipes chat history for every student on this tutor, not just
+          the instructor's own materials. */}
       {canManage && (
-        <EditTutorForm tutorTopicId={tutor.id} name={tutor.name} systemPrompt={tutor.systemPrompt} />
+        <TutorSettingsPanel
+          tutorTopicId={tutor.id}
+          name={tutor.name}
+          systemPrompt={tutor.systemPrompt}
+          materials={tutor.materials}
+          isAdmin={isAdmin}
+        />
       )}
-
-      {canManage && <MaterialsManager tutorTopicId={tutor.id} materials={tutor.materials} />}
-
-      {/* Deletion wipes chat history for every student on this tutor,
-          not just the instructor's own materials — scoped to admins
-          only, unlike the manage controls above. */}
-      {isAdmin && <DeleteTutorButton tutorTopicId={tutor.id} tutorName={tutor.name} />}
 
       {!profile ? (
         <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-500">

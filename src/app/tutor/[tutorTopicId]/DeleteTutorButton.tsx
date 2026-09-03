@@ -4,10 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { deleteTutorTopic } from "./actions";
 
-// Admin-only control (gated by the caller — see page.tsx's `isAdmin`).
-// Deleting a tutor wipes every student's chat history for it, so this
-// asks for confirmation before calling the server action, unlike the
-// single-material delete in MaterialsManager.
+// Admin-only control (gated by the caller — see TutorSettingsPanel's
+// `isAdmin`). Deleting a tutor wipes every student's chat history for
+// it, so this asks for confirmation before calling the server action,
+// unlike the single-material delete in MaterialsManager.
+//
+// Rendered as one section inside TutorSettingsPanel, which supplies
+// the outer border/spacing — this component only owns its own content.
 export function DeleteTutorButton({
   tutorTopicId,
   tutorName,
@@ -37,7 +40,7 @@ export function DeleteTutorButton({
   }
 
   return (
-    <div className="mt-6 rounded-lg border border-red-200 p-4 dark:border-red-900">
+    <div>
       <h2 className="font-semibold text-red-700 dark:text-red-400">Danger zone</h2>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
         Permanently delete this tutor, its materials, and all chat history with it.

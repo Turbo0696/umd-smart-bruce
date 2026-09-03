@@ -85,7 +85,7 @@ export function MaterialsManager({
   }
 
   return (
-    <div className="mt-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+    <div>
       <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
         Materials
       </h2>
