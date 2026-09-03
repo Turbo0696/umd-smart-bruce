@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { sendMessage } from "./actions";
 
 type Msg = { role: "USER" | "ASSISTANT"; content: string };
@@ -16,11 +16,18 @@ export function TutorChat({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A second guard alongside the `sending` state: a fast double-tap on
+  // "Send" can fire two submissions before React commits the state
+  // update that would have blocked the second one, producing two
+  // identical user bubbles and two concurrent tutor calls. A ref updates
+  // synchronously, so it closes that gap.
+  const submittingRef = useRef(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const content = input.trim();
-    if (!content || sending) return;
+    if (!content || sending || submittingRef.current) return;
+    submittingRef.current = true;
 
     setError(null);
     setMessages((m) => [...m, { role: "USER", content }]);
@@ -39,15 +46,23 @@ export function TutorChat({
       // message (unlike a page-render error, which Next.js redacts), so
       // show it — a generic "couldn't reach" for every kind of failure
       // (timeout vs. a real 4xx/5xx vs. something else) was exactly
-      // what made this issue slow to diagnose.
+      // what made this issue slow to diagnose. When Next.js redacts a
+      // Server Component render error, it still attaches a `digest` —
+      // append it so the corresponding server-side log line (which has
+      // the real stack trace) can be found without guessing.
+      const digest =
+        err && typeof err === "object" && "digest" in err
+          ? String((err as { digest?: unknown }).digest)
+          : null;
       const detail = err instanceof Error && err.message ? err.message : null;
-      setError(
+      const base =
         detail ??
-          "Couldn't reach the tutor — your message was saved, try asking again.",
-      );
+        "Couldn't reach the tutor — your message was saved, try asking again.";
+      setError(digest ? `${base} (ref: ${digest})` : base);
       setInput(content);
     } finally {
       setSending(false);
+      submittingRef.current = false;
     }
   }
 

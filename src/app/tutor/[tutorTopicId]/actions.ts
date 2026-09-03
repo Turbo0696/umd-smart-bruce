@@ -184,49 +184,76 @@ export async function deleteMaterial(tutorTopicId: string, materialId: string) {
   revalidatePath(`/tutor/${tutorTopicId}`);
 }
 
+// Tag on our own so a failure here is greppable in Vercel's function logs
+// without needing the (often-redacted) React digest — search this string
+// plus the tutorTopicId/step it logs alongside it.
+const LOG_TAG = "[tutor.sendMessage]";
+
 export async function sendMessage(tutorTopicId: string, content: string) {
-  const profile = await getCurrentProfile();
-  if (!profile) throw new Error("You must be logged in to chat.");
+  // Wrapped end-to-end: this is the route that produced "Minified React
+  // error #441" in production, whose real message Next.js redacts from
+  // the client. Whatever step throws, log it here with full detail
+  // *before* rethrowing, so the server-side log (not just the client's
+  // redacted digest) always has the real cause.
+  let step = "auth";
+  try {
+    const profile = await getCurrentProfile();
+    if (!profile) throw new Error("You must be logged in to chat.");
 
-  const tutor = await prisma.tutorTopic.findUnique({
-    where: { id: tutorTopicId },
-    include: { course: { include: { enrollments: true } } },
-  });
-  if (!tutor) throw new Error("Tutor not found.");
+    step = "load-tutor";
+    const tutor = await prisma.tutorTopic.findUnique({
+      where: { id: tutorTopicId },
+      include: { course: { include: { enrollments: true } } },
+    });
+    if (!tutor) throw new Error("Tutor not found.");
 
-  if (tutor.courseId) {
-    const isInstructor = tutor.course!.instructorId === profile.id;
-    const isEnrolled = tutor.course!.enrollments.some((e) => e.userId === profile.id);
-    if (!isInstructor && profile.role !== "ADMIN" && !isEnrolled) {
-      throw new Error("You need to join this course first.");
+    if (tutor.courseId) {
+      const isInstructor = tutor.course!.instructorId === profile.id;
+      const isEnrolled = tutor.course!.enrollments.some((e) => e.userId === profile.id);
+      if (!isInstructor && profile.role !== "ADMIN" && !isEnrolled) {
+        throw new Error("You need to join this course first.");
+      }
     }
+
+    const trimmed = content.trim();
+    if (!trimmed) throw new Error("Message can't be empty.");
+
+    step = "save-user-message";
+    await prisma.chatMessage.create({
+      data: { tutorTopicId, userId: profile.id, role: "USER", content: trimmed },
+    });
+
+    step = "retrieve-context";
+    const context = await retrieveContext(tutorTopicId, trimmed);
+    const systemPrompt = renderSystemPrompt(tutor.systemPrompt, { context, question: trimmed });
+
+    step = "load-history";
+    const history = await prisma.chatMessage.findMany({
+      where: { tutorTopicId, userId: profile.id },
+      orderBy: { createdAt: "asc" },
+    });
+    const turns = history.map((m) => ({
+      role: (m.role === "USER" ? "user" : "assistant") as "user" | "assistant",
+      content: m.content,
+    }));
+
+    step = "ask-tutor";
+    const reply = await askTutor(systemPrompt, turns);
+
+    step = "save-assistant-message";
+    await prisma.chatMessage.create({
+      data: { tutorTopicId, userId: profile.id, role: "ASSISTANT", content: reply },
+    });
+
+    step = "revalidate";
+    revalidatePath(`/tutor/${tutorTopicId}`);
+
+    return reply;
+  } catch (err) {
+    console.error(
+      `${LOG_TAG} failed at step="${step}" tutorTopicId=${tutorTopicId}`,
+      err,
+    );
+    throw err;
   }
-
-  const trimmed = content.trim();
-  if (!trimmed) throw new Error("Message can't be empty.");
-
-  await prisma.chatMessage.create({
-    data: { tutorTopicId, userId: profile.id, role: "USER", content: trimmed },
-  });
-
-  const context = await retrieveContext(tutorTopicId, trimmed);
-  const systemPrompt = renderSystemPrompt(tutor.systemPrompt, { context, question: trimmed });
-
-  const history = await prisma.chatMessage.findMany({
-    where: { tutorTopicId, userId: profile.id },
-    orderBy: { createdAt: "asc" },
-  });
-  const turns = history.map((m) => ({
-    role: (m.role === "USER" ? "user" : "assistant") as "user" | "assistant",
-    content: m.content,
-  }));
-
-  const reply = await askTutor(systemPrompt, turns);
-
-  await prisma.chatMessage.create({
-    data: { tutorTopicId, userId: profile.id, role: "ASSISTANT", content: reply },
-  });
-
-  revalidatePath(`/tutor/${tutorTopicId}`);
-  return reply;
 }
