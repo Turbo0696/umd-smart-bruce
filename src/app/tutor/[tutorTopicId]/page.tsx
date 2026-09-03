@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { DeleteTutorButton } from "./DeleteTutorButton";
 import { MaterialsManager } from "./MaterialsManager";
 import { TutorChat } from "./TutorChat";
 
@@ -76,6 +77,11 @@ export default async function TutorPage(props: PageProps<"/tutor/[tutorTopicId]"
       </p>
 
       {canManage && <MaterialsManager tutorTopicId={tutor.id} materials={tutor.materials} />}
+
+      {/* Deletion wipes chat history for every student on this tutor,
+          not just the instructor's own materials — scoped to admins
+          only, unlike the manage controls above. */}
+      {isAdmin && <DeleteTutorButton tutorTopicId={tutor.id} tutorName={tutor.name} />}
 
       {!profile ? (
         <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-500">

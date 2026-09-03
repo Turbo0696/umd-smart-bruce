@@ -189,6 +189,53 @@ export async function deleteMaterial(tutorTopicId: string, materialId: string) {
 // plus the tutorTopicId/step it logs alongside it.
 const LOG_TAG = "[tutor.sendMessage]";
 
+// Admin-only: removes the tutor and everything hanging off it (chat
+// history for every student, uploaded materials + their storage
+// objects, and the embedded chunks). Unlike requireManager's checks
+// elsewhere in this file, this is intentionally NOT open to the
+// course/topic instructor — deleting wipes every student's chat
+// history for the tutor, not just the instructor's own materials, so
+// it's scoped to admins.
+//
+// None of the FK relations below are set up with ON DELETE CASCADE in
+// the schema (see deleteMaterial above, which does the same manual
+// teardown for a single material), so children have to go first or
+// the final delete hits a foreign-key violation.
+export async function deleteTutorTopic(tutorTopicId: string) {
+  const profile = await getCurrentProfile();
+  if (!profile || profile.role !== "ADMIN") {
+    throw new Error("Only an admin can delete a tutor.");
+  }
+
+  const tutor = await prisma.tutorTopic.findUnique({
+    where: { id: tutorTopicId },
+    include: { materials: true, topic: true, course: true },
+  });
+  if (!tutor) throw new Error("Tutor not found.");
+
+  if (tutor.materials.length > 0) {
+    const admin = createAdminClient();
+    // Best-effort like deleteMaterial above: an already-missing storage
+    // object shouldn't block cleaning up the database rows.
+    await admin.storage
+      .from(STORAGE_BUCKET)
+      .remove(tutor.materials.map((m) => m.storagePath));
+
+    await prisma.materialChunk.deleteMany({
+      where: { materialId: { in: tutor.materials.map((m) => m.id) } },
+    });
+    await prisma.tutorMaterial.deleteMany({ where: { tutorTopicId } });
+  }
+
+  await prisma.chatMessage.deleteMany({ where: { tutorTopicId } });
+  await prisma.tutorTopic.delete({ where: { id: tutorTopicId } });
+
+  revalidatePath("/tutors");
+  revalidatePath("/");
+  if (tutor.topic) revalidatePath(`/topics/${tutor.topic.slug}`);
+  if (tutor.course) revalidatePath(`/courses/${tutor.course.id}`);
+}
+
 export async function sendMessage(tutorTopicId: string, content: string) {
   // Wrapped end-to-end: this is the route that produced "Minified React
   // error #441" in production, whose real message Next.js redacts from
