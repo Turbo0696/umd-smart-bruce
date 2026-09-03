@@ -61,18 +61,19 @@ export function Nav({ profile }: { profile: NavProfile }) {
 
       {open && (
         <>
-          {/* Backdrop: click outside the panel to close it, on every screen size. */}
+          {/* Invisible click-catcher: tapping anywhere outside the popover closes it. */}
           <div
-            className="fixed inset-0 z-40 bg-black/30"
+            className="fixed inset-0 z-40"
             onClick={close}
             aria-hidden="true"
           />
-          {/* A fixed drawer anchored to the right edge, at every breakpoint —
-              previously this was an inline block starting from the left on
-              mobile and a left-anchored dropdown on desktop. */}
+          {/* A small popover anchored directly under the hamburger/X button —
+              left-6 lines up with that button's position (px-6 on the nav
+              above), sized to its content rather than stretching across or
+              down the whole screen. */}
           <div
-            className="fixed inset-y-0 right-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 overflow-y-auto
-                       border-l border-zinc-200 bg-white p-6 text-sm font-medium text-zinc-600 shadow-xl
+            className="absolute left-6 top-full z-50 mt-2 flex w-64 max-w-[85vw] flex-col gap-4 rounded-xl
+                       border border-zinc-200 bg-white p-4 text-sm font-medium text-zinc-600 shadow-xl
                        dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
           >
             <Link href="/" className={linkClass} onClick={close}>Home</Link>
