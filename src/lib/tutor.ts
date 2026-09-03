@@ -47,9 +47,36 @@ export async function askTutor(
   }
 
   const data = await res.json();
-  const text = data.content?.[0]?.text;
-  if (typeof text !== "string") {
-    throw new Error("Unexpected tutor API response shape.");
+
+  // The first message in a conversation worked; a later one (longer
+  // context) threw "Unexpected tutor API response shape" from a bare
+  // `data.content?.[0]?.text` — meaning content[0] wasn't the text
+  // block. The Anthropic Messages shape allows more than one content
+  // block (e.g. a "thinking" block ahead of "text" for extended
+  // thinking), so pick the first block that actually has type "text"
+  // instead of assuming index 0, rather than requiring Portkey/UMGPT to
+  // never add a leading block.
+  const blocks = Array.isArray(data.content) ? data.content : [];
+  const textBlock = blocks.find(
+    (b: unknown): b is { type: "text"; text: string } =>
+      typeof b === "object" &&
+      b !== null &&
+      (b as { type?: unknown }).type === "text" &&
+      typeof (b as { text?: unknown }).text === "string",
+  );
+
+  if (!textBlock) {
+    // Log the raw shape server-side (truncated) so if this guess is
+    // wrong, the actual structure is right there in Vercel's logs
+    // instead of requiring another round of blind guessing.
+    console.error(
+      "[askTutor] unexpected response shape:",
+      JSON.stringify(data).slice(0, 2000),
+    );
+    throw new Error(
+      `Unexpected tutor API response shape: ${JSON.stringify(data).slice(0, 300)}`,
+    );
   }
-  return text;
+
+  return textBlock.text;
 }
