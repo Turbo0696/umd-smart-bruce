@@ -61,16 +61,19 @@ export function Nav({ profile }: { profile: NavProfile }) {
 
       {open && (
         <>
-          {/* Desktop: clicking outside the popover closes it. No-op on mobile, where the menu is inline. */}
+          {/* Backdrop: click outside the panel to close it, on every screen size. */}
           <div
-            className="fixed inset-0 z-40 hidden md:block"
+            className="fixed inset-0 z-40 bg-black/30"
             onClick={close}
             aria-hidden="true"
           />
+          {/* A fixed drawer anchored to the right edge, at every breakpoint —
+              previously this was an inline block starting from the left on
+              mobile and a left-anchored dropdown on desktop. */}
           <div
-            className="flex flex-col gap-4 border-t border-zinc-200 px-6 py-4 text-sm font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-400
-                       md:absolute md:left-6 md:top-full md:z-50 md:mt-2 md:w-64 md:rounded-xl md:border md:bg-white md:p-4 md:shadow-xl
-                       md:dark:border-zinc-800 md:dark:bg-zinc-900"
+            className="fixed inset-y-0 right-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 overflow-y-auto
+                       border-l border-zinc-200 bg-white p-6 text-sm font-medium text-zinc-600 shadow-xl
+                       dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
           >
             <Link href="/" className={linkClass} onClick={close}>Home</Link>
             <Link href="/topics" className={linkClass} onClick={close}>Topics</Link>
