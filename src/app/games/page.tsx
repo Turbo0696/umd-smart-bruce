@@ -63,7 +63,16 @@ export default async function GamesPage() {
       </h1>
 
       {SECTIONS.map(({ category, title, blurb }) => {
-        const inSection = games.filter((g) => g.category === category);
+        // Alphabetical within a section, except Optimal Stopping always
+        // sorts last — it's the newest simulation and reads best as the
+        // final card rather than wherever its name falls alphabetically.
+        const inSection = games
+          .filter((g) => g.category === category)
+          .sort((a, b) => {
+            if (a.slug === "optimal-stopping") return 1;
+            if (b.slug === "optimal-stopping") return -1;
+            return 0;
+          });
         if (inSection.length === 0) return null;
         return (
           <section key={category} className="mb-10">
