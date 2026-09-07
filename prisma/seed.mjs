@@ -217,4 +217,24 @@ await prisma.game.upsert({
 });
 console.log("Seeded game: prisoners-dilemma");
 
+await prisma.game.upsert({
+  where: { slug: "optimal-stopping" },
+  update: {
+    name: "Optimal Stopping Simulator",
+    description:
+      "Roll dice (or draw from a Normal distribution) up to N times, choosing after each roll whether to keep it or reroll. Compare the optimal keep-threshold rule, found by backward induction, against thresholds you set yourself.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+  create: {
+    slug: "optimal-stopping",
+    name: "Optimal Stopping Simulator",
+    description:
+      "Roll dice (or draw from a Normal distribution) up to N times, choosing after each roll whether to keep it or reroll. Compare the optimal keep-threshold rule, found by backward induction, against thresholds you set yourself.",
+    topicId: decisionSciences.id,
+    category: "SIMULATION",
+  },
+});
+console.log("Seeded game: optimal-stopping");
+
 await prisma.$disconnect();

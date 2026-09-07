@@ -12,6 +12,7 @@ import { FishBanksSoloGame } from "./FishBanksSoloGame";
 import { ForecastingGame } from "./ForecastingGame";
 import { NewsvendorLanding } from "./NewsvendorLanding";
 import { NewsvendorSoloGame } from "./NewsvendorSoloGame";
+import { OptimalStoppingSimulator } from "./OptimalStoppingSimulator";
 import { PrisonersDilemmaSimulator } from "./PrisonersDilemmaSimulator";
 import { RandomBabiesSimulator } from "./RandomBabiesSimulator";
 
@@ -161,6 +162,9 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
   }
   if (slug === "prisoners-dilemma") {
     return <PrisonersDilemmaSimulator />;
+  }
+  if (slug === "optimal-stopping") {
+    return <OptimalStoppingSimulator />;
   }
 
   notFound();

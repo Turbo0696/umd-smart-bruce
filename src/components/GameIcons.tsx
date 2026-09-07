@@ -181,3 +181,28 @@ export function TrendChartIcon({ className = "" }: IconProps) {
     </div>
   );
 }
+
+export function HourglassIcon({ className = "" }: IconProps) {
+  return (
+    <div className={`${BADGE} ${className}`}>
+      <svg width={40} height={40} viewBox="0 0 40 40" role="img" aria-hidden="true">
+        <line x1="11" y1="6" x2="29" y2="6" className="stroke-amber-500 dark:stroke-amber-400" strokeWidth={2} strokeLinecap="round" />
+        <line x1="11" y1="34" x2="29" y2="34" className="stroke-amber-500 dark:stroke-amber-400" strokeWidth={2} strokeLinecap="round" />
+        <path
+          d="M 13 6 Q 13 17 20 20 Q 27 17 27 6 Z M 13 34 Q 13 23 20 20 Q 27 23 27 34 Z"
+          className="fill-amber-50 stroke-amber-500 dark:fill-amber-950 dark:stroke-amber-400"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 16 9 Q 16 15 20 18 Q 24 15 24 9 Z"
+          className="fill-amber-400 dark:fill-amber-500"
+        />
+        <path
+          d="M 17 31 Q 17 25.5 20 23 Q 20 27 20 31 Z"
+          className="fill-amber-400 dark:fill-amber-500"
+        />
+      </svg>
+    </div>
+  );
+}
