@@ -105,7 +105,7 @@ Not covered — no part of these derives from upstream:
 
 - the AI tutors, Maizey integration, topics, courses and admin areas
 - the Newsvendor, Fish Banks, Forecasting, Dice, Random Babies, Prisoner's
-  Dilemma and Optimal Stopping games
+  Dilemma, Optimal Stopping and Sourcing Negotiation games
 - `src/components/LineChart.tsx` and `BarChart.tsx` (shared across games; the
   `minAxisMax` prop is Bruce's own code)
 - `prisma/schema.prisma` (shared; the `BeerTeam` / `BeerTeamSlot` models are
@@ -123,6 +123,37 @@ CC BY-SA 4.0 is not designed for software — Creative Commons
 as it lacks patent and warranty provisions — and it is only *one-way* compatible
 with GPLv3. If a future dependency or contribution requires a different copyleft
 license, it may conflict with the files listed above.
+
+## Sourcing Negotiation
+
+Bruce's Sourcing Negotiation game is an **independent implementation of the
+exercise described in**:
+
+> Gumus, M. & Love, E. C. (2013). "Supply Chain Sourcing Game: A Negotiation
+> Exercise." *Decision Sciences Journal of Innovative Education*, 11(1), 3–12.
+> DOI [10.1111/j.1540-4609.2012.00368.x](https://doi.org/10.1111/j.1540-4609.2012.00368.x).
+
+The paper is a paywalled Teaching Brief, © 2012 Decision Sciences Institute.
+**No text, figures, forms, or code from the paper are reproduced anywhere in
+this repository** — the paper's PDF was read to understand the exercise's
+structure (retailer/wholesaler dyads, a request-for-quotation followed by
+rounds of wholesaler-proposes / retailer-responds, a final round limited to
+accept-or-reject, and a comparison against a vertically-integrated firm's
+profit), and that structure was reimplemented from scratch against Bruce's
+own schema and server actions.
+
+The default parameters in `DEFAULT_NEGOTIATION_CONFIG`
+(`src/lib/negotiation.ts`) mirror the paper's Figures 3–4 (a 4-month demand
+schedule, retail price, salvage value, and both parties' ordering/holding
+costs), and are host-editable on the create form — adopters who have the
+paper should check these against it themselves rather than take this
+repository's numbers as authoritative. Everything else — the lot-sizing
+solver, the centralized-optimum benchmark, the negotiation protocol's
+turn-taking, and the scripted bot counterparty — is original engineering
+built on standard two-echelon inventory theory, not derived from the paper.
+
+No files here carry an `SPDX-License-Identifier` header; none of this is
+CC BY-SA 4.0.
 
 ## Other credits
 

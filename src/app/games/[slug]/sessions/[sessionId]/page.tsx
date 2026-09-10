@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { BeerGameSession } from "./BeerGameSession";
 import { FishBanksSession } from "./FishBanksSession";
+import { NegotiationSession } from "./NegotiationSession";
 import { NewsvendorSession } from "./NewsvendorSession";
 
 export default async function SessionPage(
@@ -16,6 +17,9 @@ export default async function SessionPage(
   }
   if (slug === "fish-banks") {
     return <FishBanksSession slug={slug} sessionId={sessionId} />;
+  }
+  if (slug === "negotiation-game") {
+    return <NegotiationSession slug={slug} sessionId={sessionId} />;
   }
 
   notFound();

@@ -22,19 +22,21 @@ model Profile {
   role      Role     @default(STUDENT)
   createdAt DateTime @default(now())
 
-  posts                    Post[]
-  enrollments              Enrollment[]
-  courses                  Course[]                 @relation("CourseInstructor")
-  gameSessions             GameSession[]            @relation("GameSessionInstructor")
-  participant              GameParticipant[]
-  newsvendorSessions       NewsvendorSession[]       @relation("NewsvendorSessionInstructor")
-  newsvendorParticipant    NewsvendorParticipant[]
-  forecastingAttempts      ForecastingAttempt[]
-  soloNewsvendorAttempts   SoloNewsvendorAttempt[]
-  fishBanksSessions        FishBanksSession[]        @relation("FishBanksSessionInstructor")
-  fishBanksParticipant     FishBanksParticipant[]
-  chats                    ChatMessage[]
-  maizeyConversations      MaizeyConversation[]
+  posts                  Post[]
+  enrollments            Enrollment[]
+  courses                Course[]                 @relation("CourseInstructor")
+  gameSessions           GameSession[]            @relation("GameSessionInstructor")
+  participant            GameParticipant[]
+  newsvendorSessions     NewsvendorSession[]      @relation("NewsvendorSessionInstructor")
+  newsvendorParticipant  NewsvendorParticipant[]
+  forecastingAttempts    ForecastingAttempt[]
+  soloNewsvendorAttempts SoloNewsvendorAttempt[]
+  fishBanksSessions      FishBanksSession[]       @relation("FishBanksSessionInstructor")
+  fishBanksParticipant   FishBanksParticipant[]
+  negotiationSessions    NegotiationSession[]     @relation("NegotiationSessionInstructor")
+  negotiationParticipant NegotiationParticipant[]
+  chats                  ChatMessage[]
+  maizeyConversations    MaizeyConversation[]
 }
 
 model Topic {
@@ -74,11 +76,12 @@ model Course {
   joinCode     String   @unique
   createdAt    DateTime @default(now())
 
-  enrollments        Enrollment[]
-  gameSessions       GameSession[]
-  newsvendorSessions NewsvendorSession[]
-  fishBanksSessions  FishBanksSession[]
-  tutorTopics        TutorTopic[]
+  enrollments         Enrollment[]
+  gameSessions        GameSession[]
+  newsvendorSessions  NewsvendorSession[]
+  fishBanksSessions   FishBanksSession[]
+  negotiationSessions NegotiationSession[]
+  tutorTopics         TutorTopic[]
 }
 
 model Enrollment {
@@ -109,9 +112,10 @@ model Game {
   description String?
   category    GameCategory @default(SINGLE_PLAYER)
 
-  sessions           GameSession[]
-  newsvendorSessions NewsvendorSession[]
-  fishBanksSessions  FishBanksSession[]
+  sessions            GameSession[]
+  newsvendorSessions  NewsvendorSession[]
+  fishBanksSessions   FishBanksSession[]
+  negotiationSessions NegotiationSession[]
 }
 
 enum SessionStatus {
@@ -140,9 +144,9 @@ model GameSession {
   startedAt    DateTime?
   completedAt  DateTime?
 
-  participants GameParticipant[]
-  teams        BeerTeam[]
-  roundStates  GameRoundState[]
+  participants  GameParticipant[]
+  teams         BeerTeam[]
+  roundStates   GameRoundState[]
   pendingOrders PendingOrder[]
 }
 
@@ -193,12 +197,12 @@ enum BeerGameRole {
 // until the host starts the session and the cohort is drawn; the role then
 // lives on their BeerTeamSlot.
 model GameParticipant {
-  id        String       @id @default(uuid())
-  session   GameSession  @relation(fields: [sessionId], references: [id])
+  id        String      @id @default(uuid())
+  session   GameSession @relation(fields: [sessionId], references: [id])
   sessionId String
-  user      Profile      @relation(fields: [userId], references: [id])
+  user      Profile     @relation(fields: [userId], references: [id])
   userId    String
-  joinedAt  DateTime     @default(now())
+  joinedAt  DateTime    @default(now())
 
   slot          BeerTeamSlot?
   roundStates   GameRoundState[]
@@ -439,6 +443,198 @@ model FishBanksMarketRound {
   totalCatch   Float
 
   @@unique([sessionId, round])
+}
+
+// --- Supply Chain Sourcing Game / negotiation (Supply Chain Management) ---
+// Online adaptation of the classroom exercise in Gumus & Love, "Supply Chain
+// Sourcing Game: A Negotiation Exercise", Decision Sciences Journal of
+// Innovative Education 11(1), 3-12 (2013), DOI 10.1111/j.1540-4609.2012.00368.x.
+// Independent implementation from the paper's description; no code or text
+// was taken from it. Default parameters mirror the paper's Figures 3-4 and are
+// host-editable. Resolution logic lives in src/lib/negotiation.ts.
+//
+// Unlike Fish Banks/Newsvendor, a "round" here is a negotiation attempt over
+// ONE contract covering the whole planning horizon, not a production period —
+// profit is computed once, at settlement, not accumulated round over round.
+
+enum NegotiationRole {
+  RETAILER
+  WHOLESALER
+}
+
+enum NegotiationStage {
+  RFQ // retailers submitting their request for quotation
+  NEGOTIATION // k rounds of wholesaler proposal / retailer response
+  SETTLEMENT // wholesalers submitting manufacturer procurement schedules
+}
+
+enum NegotiationDyadStatus {
+  AWAITING_RFQ
+  NEGOTIATING
+  AGREED
+  NO_DEAL
+}
+
+enum NegotiationResponseKind {
+  ACCEPT
+  REVISE
+  REJECT // final-round rejection: ends without a contract
+}
+
+model NegotiationSession {
+  id              String           @id @default(uuid())
+  game            Game             @relation(fields: [gameId], references: [id])
+  gameId          String
+  course          Course?          @relation(fields: [courseId], references: [id])
+  courseId        String?
+  instructor      Profile          @relation("NegotiationSessionInstructor", fields: [instructorId], references: [id])
+  instructorId    String
+  joinCode        String           @unique
+  status          SessionStatus    @default(PENDING)
+  stage           NegotiationStage @default(RFQ)
+  currentRound    Int              @default(1)
+  totalRounds     Int              @default(3)
+  roundDeadlineAt DateTime? // advisory only — there is no cron/realtime to enforce it; see src/lib/negotiation.ts
+  config          Json?
+  createdAt       DateTime         @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  participants NegotiationParticipant[]
+  dyads        NegotiationDyad[]
+  rounds       NegotiationRound[]
+  outcomes     NegotiationOutcome[]
+}
+
+// Enrolment in the class, not a seat at a table: role is implied by which FK
+// on NegotiationDyad points here, and is unset until the host starts and
+// dyads are drawn.
+model NegotiationParticipant {
+  id        String             @id @default(uuid())
+  session   NegotiationSession @relation(fields: [sessionId], references: [id])
+  sessionId String
+  user      Profile            @relation(fields: [userId], references: [id])
+  userId    String
+  joinedAt  DateTime           @default(now())
+
+  retailerSeat   NegotiationDyad?     @relation("NegotiationDyadRetailer")
+  wholesalerSeat NegotiationDyad?     @relation("NegotiationDyadWholesaler")
+  outcomes       NegotiationOutcome[]
+
+  @@unique([sessionId, userId])
+}
+
+// One retailer/wholesaler pair, fixed for the whole game — "each retailer...
+// negotiates with a single wholesaler" (paper, p.4). A null participant FK is
+// a bot seat; Postgres treats NULLs as distinct in a unique index, so @unique
+// still allows any number of bot seats while making a double-claim a P2002
+// and guaranteeing nobody holds two seats.
+model NegotiationDyad {
+  id                      String                  @id @default(uuid())
+  session                 NegotiationSession      @relation(fields: [sessionId], references: [id])
+  sessionId               String
+  dyadNumber              Int
+  retailerFirmName        String
+  wholesalerFirmName      String
+  retailer                NegotiationParticipant? @relation("NegotiationDyadRetailer", fields: [retailerParticipantId], references: [id])
+  retailerParticipantId   String?                 @unique
+  wholesaler              NegotiationParticipant? @relation("NegotiationDyadWholesaler", fields: [wholesalerParticipantId], references: [id])
+  wholesalerParticipantId String?                 @unique
+  status                  NegotiationDyadStatus   @default(AWAITING_RFQ)
+
+  rfqQuantities       Json? // number[], one per horizon month — the Fig. 6 RFQ
+  demandShared        Boolean  @default(false)
+  agreedPrice         Float?
+  agreedQuantities    Json? // number[] — per-month supply, once agreed
+  agreedAtRound       Int?
+  procurementSchedule Json? // number[] — wholesaler's manufacturer order schedule
+  createdAt           DateTime @default(now())
+
+  rounds   NegotiationRound[]
+  outcomes NegotiationOutcome[]
+  result   NegotiationDyadResult?
+
+  @@unique([sessionId, dyadNumber])
+}
+
+// Both the staging row the stage-advance threshold counts AND the permanent
+// transcript — the wholesaler's proposal and the retailer's response, i.e.
+// the paper's single sheet of paper written on both sides (pp. 8-9). Rows
+// are created eagerly (one per dyad per round) and never deleted.
+model NegotiationRound {
+  id        String             @id @default(uuid())
+  session   NegotiationSession @relation(fields: [sessionId], references: [id])
+  sessionId String
+  dyad      NegotiationDyad    @relation(fields: [dyadId], references: [id], onDelete: Cascade)
+  dyadId    String
+  round     Int
+
+  proposalPrice      Float?
+  proposalQuantities Json?
+  proposalNote       String?
+  proposalByBot      Boolean   @default(false)
+  proposedAt         DateTime?
+
+  responseKind        NegotiationResponseKind?
+  requestedPrice      Float?
+  requestedQuantities Json?
+  responseNote        String?
+  responseByBot       Boolean                  @default(false)
+  respondedAt         DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([dyadId, round])
+  @@index([sessionId, round])
+}
+
+// One row per seat, computed once at settlement. @@unique([dyadId, role]) is
+// the concurrency barrier for the stage-advance race — both columns are
+// NOT NULL, unlike participantId (which is null for a bot seat and therefore
+// cannot serve as a unique-constraint barrier: Postgres treats NULLs as
+// distinct, so two racing resolvers writing bot rows would both succeed).
+model NegotiationOutcome {
+  id              String                  @id @default(uuid())
+  session         NegotiationSession      @relation(fields: [sessionId], references: [id])
+  sessionId       String
+  dyad            NegotiationDyad         @relation(fields: [dyadId], references: [id], onDelete: Cascade)
+  dyadId          String
+  participant     NegotiationParticipant? @relation(fields: [participantId], references: [id])
+  participantId   String?
+  role            NegotiationRole
+  isBot           Boolean                 @default(false)
+  dealt           Boolean
+  agreedPrice     Float?
+  unitsContracted Int
+  unitsSold       Int
+  unmetDemand     Int
+  endingInventory Int
+  revenue         Float
+  goodsCost       Float
+  orderingCost    Float
+  holdingCost     Float
+  salvageRevenue  Float
+  profit          Float
+
+  @@unique([dyadId, role])
+  @@index([sessionId])
+}
+
+// Chain-level debrief numbers. The negotiated price is a pure transfer, so
+// chainProfit does not depend on it — the headline teaching point, made
+// concrete by comparing against centralizedProfit (the vertically-integrated
+// first-best, computed by src/lib/negotiation.ts's centralizedOptimum).
+model NegotiationDyadResult {
+  id                String          @id @default(uuid())
+  dyad              NegotiationDyad @relation(fields: [dyadId], references: [id], onDelete: Cascade)
+  dyadId            String          @unique
+  dealt             Boolean
+  chainProfit       Float
+  centralizedProfit Float
+  coordinationLoss  Float
+  efficiency        Float
+  deliveryCount     Int
+  procurementCount  Int
 }
 
 // --- Forecasting practice game (Decision Sciences) ---

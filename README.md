@@ -44,9 +44,13 @@ upstream states. Full license text: [`LICENSE-CC-BY-SA-4.0.txt`](./LICENSE-CC-BY
 ## Tests
 
 ```bash
-npm test        # Vitest, unit tests for the Beer Game logic — no database needed
+npm test        # Vitest, unit tests for the Beer Game and Sourcing Negotiation logic — no database needed
 npm run test:watch
 ```
+
+`src/lib/negotiation.test.ts` and `negotiationBot.test.ts` cover the Sourcing
+Negotiation engine — the profit math, the two-echelon lot-sizing solver, the
+centralized-optimum benchmark, and the scripted bot's negotiation policy.
 
 `src/lib/beerGameParity.test.ts` checks the simulation against a fixture
 generated from siemsene/beergame's own engine. To regenerate that fixture:

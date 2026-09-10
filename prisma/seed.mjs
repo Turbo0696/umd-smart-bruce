@@ -53,6 +53,26 @@ await prisma.game.upsert({
 });
 console.log("Seeded game: beer-game");
 
+await prisma.game.upsert({
+  where: { slug: "negotiation-game" },
+  update: {
+    name: "Sourcing Negotiation",
+    description:
+      "An adaptation of a classroom sourcing exercise: fixed retailer/wholesaler pairs negotiate a supply contract — price and a monthly delivery schedule — over a few rounds, then compare their combined profit to what a single, vertically-integrated firm could have made.",
+    topicId: scm.id,
+    category: "MULTI_PLAYER",
+  },
+  create: {
+    slug: "negotiation-game",
+    name: "Sourcing Negotiation",
+    description:
+      "An adaptation of a classroom sourcing exercise: fixed retailer/wholesaler pairs negotiate a supply contract — price and a monthly delivery schedule — over a few rounds, then compare their combined profit to what a single, vertically-integrated firm could have made.",
+    topicId: scm.id,
+    category: "MULTI_PLAYER",
+  },
+});
+console.log("Seeded game: negotiation-game");
+
 const decisionSciences = await prisma.topic.findUniqueOrThrow({
   where: { slug: "decision-sciences" },
 });
