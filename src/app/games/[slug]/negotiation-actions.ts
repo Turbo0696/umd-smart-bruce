@@ -132,7 +132,7 @@ function parseConfigFromForm(formData: FormData): NegotiationConfig {
       0,
     ),
     totalRounds: clampInt(formData.get("totalRounds"), DEFAULT_NEGOTIATION_CONFIG.totalRounds, 1, 10),
-    roundSeconds: parseOptionalPositiveInt(formData.get("roundSeconds")),
+    roundMinutes: parseOptionalPositiveInt(formData.get("roundMinutes")),
     allowDemandSharing: formData.get("allowDemandSharing") !== null,
     allowNotes: formData.get("allowNotes") !== null,
     noteMaxLength: DEFAULT_NEGOTIATION_CONFIG.noteMaxLength,

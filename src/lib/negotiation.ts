@@ -36,7 +36,7 @@ export type NegotiationConfig = {
   wholesalerHoldingCost: number; // $/unit/month, wholesaler's own inventory
   wholesalerSalvage: number; // $/unit for wholesaler's leftover stock (paper doesn't specify this; our default is 0)
   totalRounds: number; // k rounds of negotiation
-  roundSeconds: number | null; // advisory per-round clock; there is no cron/realtime, so this is never enforced automatically — see negotiation-actions.ts
+  roundMinutes: number | null; // advisory per-round clock; there is no cron/realtime, so this is never enforced automatically — see negotiation-actions.ts
   allowDemandSharing: boolean; // lets the retailer reveal its demand schedule to the wholesaler
   allowNotes: boolean;
   noteMaxLength: number;
@@ -58,7 +58,7 @@ export const DEFAULT_NEGOTIATION_CONFIG: NegotiationConfig = {
   wholesalerHoldingCost: 2,
   wholesalerSalvage: 0,
   totalRounds: 3,
-  roundSeconds: null,
+  roundMinutes: null,
   allowDemandSharing: true,
   allowNotes: true,
   noteMaxLength: 500,

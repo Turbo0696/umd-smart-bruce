@@ -110,21 +110,21 @@ export function NegotiationLanding({
           </div>
 
           <label className={labelClass}>
-            Per-round time limit, in seconds (optional)
+            Per-round time limit, in minutes (optional)
             <input
               type="number"
-              name="roundSeconds"
-              min="30"
-              step="30"
+              name="roundMinutes"
+              min="1"
+              step="1"
               placeholder="No limit"
               className={inputClass}
             />
           </label>
           <p className="text-xs text-zinc-500 dark:text-zinc-500">
-            This is shown to students as a countdown, but nothing forces a
-            round to end automatically when it expires — you&apos;ll still
-            need to use &quot;Resolve round now&quot; on the session page for
-            a round that runs past its clock.
+            This is a guideline for you to enforce in the room — nothing
+            forces a round to end automatically when it expires. Use
+            &quot;Resolve everything stalled right now&quot; on the session
+            page for a round that runs past its clock.
           </p>
 
           <div className="flex flex-col gap-2 text-sm text-zinc-700 dark:text-zinc-300">
