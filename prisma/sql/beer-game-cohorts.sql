@@ -1,8 +1,11 @@
 -- Beer Game: single-team sessions -> cohort sessions (many teams per join code)
 --
 -- WHEN YOU NEED THIS
---   Only for a database that already has Beer Game data. A fresh/empty database
---   needs nothing but `npx prisma db push`.
+--   Run this on ANY database that already has this app's schema, before pulling
+--   the cohort code. It brings the schema fully in line with
+--   prisma/schema.prisma, so `npx prisma db push` afterwards reports no
+--   changes. Only a database with no schema at all can skip it and use
+--   `db push` alone.
 --
 -- WHY IT EXISTS
 --   This repo has no prisma/migrations history (it is managed with `db push`),
@@ -11,15 +14,26 @@
 --       no default, so they cannot be added to non-empty tables, and
 --     * "GameParticipant"."role" is dropped, but its values are the only source
 --       for reconstructing who played which role.
---   So the data has to move to the new shape first. Run this, THEN `db push`
---   (which should then report no changes).
+--   So the data has to move to the new shape first, which `db push` will not do.
 --
 -- WHAT IT DOES
---   Each existing GameSession was exactly one 4-role supply chain. This creates
---   one BeerTeam per session, rebuilds its four BeerTeamSlots from the old
---   GameParticipant.role values (roles nobody held become Beer-GPT robots),
---   re-points every GameRoundState and PendingOrder at that team, and copies
---   GameSession.currentRound into BeerTeam.currentRound.
+--   Structure first: creates BeerTeam / BeerTeamSlot, adds the new columns,
+--   re-scopes uniqueness from (session, role, round) to (team, role, round),
+--   and retires GameParticipant.role.
+--
+--   Then data, but only where there is data to move. A session that already
+--   holds gameplay history was exactly one 4-role supply chain, so it gets one
+--   BeerTeam whose four slots are rebuilt from the old GameParticipant.role
+--   values (roles nobody held become Beer-GPT robots), with its history and
+--   staged orders re-pointed at that team.
+--
+--   A session with no history yet — typically PENDING, waiting for players — is
+--   deliberately left with NO team. Under the cohort model the host draws the
+--   teams when they start the session (see startSession in
+--   src/app/games/[slug]/sessions/[sessionId]/actions.ts), and inventing an
+--   all-robot "Original Chain" for it here would leave that session looking
+--   already-started, with a stray bot-only chain in the host console and the
+--   endgame report.
 --
 -- SAFETY
 --   Wrapped in a single transaction and written to be re-runnable: re-running
@@ -28,6 +42,11 @@
 -- USAGE
 --   psql "$DIRECT_URL" -f prisma/sql/beer-game-cohorts.sql
 --   (DIRECT_URL, not DATABASE_URL — the transaction pooler does not suit DDL.)
+--
+--   Then confirm nothing is left over:
+--     npx prisma migrate diff --from-config-datasource \
+--       --to-schema prisma/schema.prisma
+--   which should print "No difference detected".
 
 BEGIN;
 
@@ -76,38 +95,69 @@ ALTER TABLE "GameParticipant" ADD COLUMN IF NOT EXISTS "joinedAt" TIMESTAMP(3) N
 
 -- Every GameSession row is a Beer Game session (newsvendor, fish-banks and
 -- forecasting each have their own *Session tables), so no filter on game slug.
-INSERT INTO "BeerTeam" ("id", "sessionId", "name", "currentRound", "totalCost", "createdAt")
-SELECT
-    gen_random_uuid()::text,
-    s."id",
-    'Original Chain',
-    s."currentRound",
-    0,
-    s."createdAt"
-FROM "GameSession" s
-WHERE NOT EXISTS (SELECT 1 FROM "BeerTeam" t WHERE t."sessionId" = s."id");
+--
+-- Only sessions that actually hold gameplay history get a team. A session with
+-- no history has nothing to preserve and must stay team-less so the host's
+-- startSession draws its cohort from the roster — see WHAT IT DOES above.
+-- Both statements below read GameParticipant."role", which step 5 retires.
+-- Postgres parses a plain statement when it executes it, so on a second run
+-- they would fail with 'column p.role does not exist' — the script would not
+-- be re-runnable. Guarding on the column and going through EXECUTE means that
+-- once the migration has been done, this whole block is skipped instead.
+DO $mig$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name   = 'GameParticipant'
+          AND column_name  = 'role'
+    ) THEN
+        RAISE NOTICE
+            'GameParticipant.role is already retired - cohort backfill has already run, skipping it.';
+        RETURN;
+    END IF;
 
--- Four slots per team. A role that had a participant becomes that human;
--- a role nobody held becomes a robot, which matches the old engine's
--- treatment of an absent role as auto-played.
-INSERT INTO "BeerTeamSlot" ("id", "teamId", "role", "participantId", "isRobot")
-SELECT
-    gen_random_uuid()::text,
-    t."id",
-    r."role",
-    p."id",
-    (p."id" IS NULL)
-FROM "BeerTeam" t
-CROSS JOIN (
-    SELECT unnest(ARRAY['RETAILER', 'WHOLESALER', 'DISTRIBUTOR', 'FACTORY']::"BeerGameRole"[]) AS "role"
-) r
-LEFT JOIN "GameParticipant" p
-       ON p."sessionId" = t."sessionId"
-      AND p."role"      = r."role"
-WHERE NOT EXISTS (
-    SELECT 1 FROM "BeerTeamSlot" sl
-    WHERE sl."teamId" = t."id" AND sl."role" = r."role"
-);
+    EXECUTE $sql$
+        INSERT INTO "BeerTeam" ("id", "sessionId", "name", "currentRound", "totalCost", "createdAt")
+        SELECT
+            gen_random_uuid()::text,
+            s."id",
+            'Original Chain',
+            s."currentRound",
+            0,
+            s."createdAt"
+        FROM "GameSession" s
+        WHERE NOT EXISTS (SELECT 1 FROM "BeerTeam" t WHERE t."sessionId" = s."id")
+          AND (
+                EXISTS (SELECT 1 FROM "GameRoundState" rs WHERE rs."sessionId" = s."id")
+             OR EXISTS (SELECT 1 FROM "PendingOrder"   po WHERE po."sessionId" = s."id")
+          )
+    $sql$;
+
+    -- Four slots per team. A role that had a participant becomes that human;
+    -- a role nobody held becomes a robot, which matches the old engine's
+    -- treatment of an absent role as auto-played.
+    EXECUTE $sql$
+        INSERT INTO "BeerTeamSlot" ("id", "teamId", "role", "participantId", "isRobot")
+        SELECT
+            gen_random_uuid()::text,
+            t."id",
+            r."role",
+            p."id",
+            (p."id" IS NULL)
+        FROM "BeerTeam" t
+        CROSS JOIN (
+            SELECT unnest(ARRAY['RETAILER', 'WHOLESALER', 'DISTRIBUTOR', 'FACTORY']::"BeerGameRole"[]) AS "role"
+        ) r
+        LEFT JOIN "GameParticipant" p
+               ON p."sessionId" = t."sessionId"
+              AND p."role"      = r."role"
+        WHERE NOT EXISTS (
+            SELECT 1 FROM "BeerTeamSlot" sl
+            WHERE sl."teamId" = t."id" AND sl."role" = r."role"
+        )
+    $sql$;
+END $mig$;
 
 -- Point history and staged orders at the session's single team.
 UPDATE "GameRoundState" rs
