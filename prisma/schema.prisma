@@ -130,16 +130,56 @@ model GameSession {
   instructorId String
   joinCode     String        @unique
   status       SessionStatus @default(PENDING)
+  // Kept for backwards compatibility and as the session-wide "furthest
+  // round reached"; the authoritative per-team round is BeerTeam.currentRound,
+  // since teams advance independently in a cohort.
   currentRound Int           @default(1)
-  totalRounds  Int           @default(20)
+  totalRounds  Int           @default(40)
   config       Json?
   createdAt    DateTime      @default(now())
   startedAt    DateTime?
   completedAt  DateTime?
 
   participants GameParticipant[]
+  teams        BeerTeam[]
   roundStates  GameRoundState[]
   pendingOrders PendingOrder[]
+}
+
+// A single 4-role supply chain inside a session. One GameSession is a whole
+// class (one join code); it holds as many BeerTeams as the roster divides
+// into, so an instructor runs 50 students from one page instead of 13.
+model BeerTeam {
+  id           String      @id @default(uuid())
+  session      GameSession @relation(fields: [sessionId], references: [id])
+  sessionId    String
+  name         String
+  currentRound Int         @default(1)
+  totalCost    Float       @default(0)
+  createdAt    DateTime    @default(now())
+
+  slots         BeerTeamSlot[]
+  roundStates   GameRoundState[]
+  pendingOrders PendingOrder[]
+
+  @@unique([sessionId, name])
+}
+
+// One role on one team. Either a human (participantId set, isRobot false) or
+// a "Beer-GPT" bot (participantId null, isRobot true). Modelling the seat
+// rather than putting a role on GameParticipant is what makes host
+// kick-to-robot and late-join-replaces-robot single-row updates, and avoids
+// needing placeholder Profile rows for bots.
+model BeerTeamSlot {
+  id            String           @id @default(uuid())
+  team          BeerTeam         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId        String
+  role          BeerGameRole
+  participant   GameParticipant? @relation(fields: [participantId], references: [id])
+  participantId String?          @unique
+  isRobot       Boolean          @default(true)
+
+  @@unique([teamId, role])
 }
 
 enum BeerGameRole {
@@ -149,14 +189,18 @@ enum BeerGameRole {
   FACTORY
 }
 
+// Enrolment in the class, not a seat at a table. A participant has no role
+// until the host starts the session and the cohort is drawn; the role then
+// lives on their BeerTeamSlot.
 model GameParticipant {
   id        String       @id @default(uuid())
   session   GameSession  @relation(fields: [sessionId], references: [id])
   sessionId String
   user      Profile      @relation(fields: [userId], references: [id])
   userId    String
-  role      BeerGameRole
+  joinedAt  DateTime     @default(now())
 
+  slot          BeerTeamSlot?
   roundStates   GameRoundState[]
   pendingOrders PendingOrder[]
 
@@ -167,6 +211,8 @@ model GameRoundState {
   id               String           @id @default(uuid())
   session          GameSession      @relation(fields: [sessionId], references: [id])
   sessionId        String
+  team             BeerTeam         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId           String
   participant      GameParticipant? @relation(fields: [participantId], references: [id])
   participantId    String?
   role             BeerGameRole
@@ -178,23 +224,33 @@ model GameRoundState {
   inventory        Int
   backlog          Int
   cost             Float
+  // True when this role was played by Beer-GPT for this round, so the
+  // endgame report can count robots even after a slot is reassigned.
+  wasRobot         Boolean          @default(false)
 
-  @@unique([sessionId, role, round])
+  // Uniqueness is per team, not per session — every team in a cohort has its
+  // own RETAILER row for round 1.
+  @@unique([teamId, role, round])
+  @@index([sessionId, round])
 }
 
-// Stages a submitted order until all 4 participants have one in for the
-// round, at which point the engine resolves them into GameRoundState rows
-// and this row is deleted — keeps GameRoundState always fully-resolved.
+// Stages a submitted order until every human slot on that team has one in
+// for the round, at which point the engine resolves them into GameRoundState
+// rows and these rows are deleted — keeps GameRoundState always
+// fully-resolved. Robots never stage an order; they're derived at resolve.
 model PendingOrder {
   id            String          @id @default(uuid())
   session       GameSession     @relation(fields: [sessionId], references: [id])
   sessionId     String
+  team          BeerTeam        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId        String
   participant   GameParticipant @relation(fields: [participantId], references: [id])
   participantId String
   round         Int
   amount        Int
 
   @@unique([participantId, round])
+  @@index([teamId, round])
 }
 
 // --- Newsvendor game (Decision Sciences) ---

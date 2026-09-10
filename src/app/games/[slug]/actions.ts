@@ -1,7 +1,12 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+//
+// Beer Game session creation and join-by-code. See NOTICE.md for attribution.
+
 "use server";
 
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
+import { DEFAULT_BEER_CONFIG } from "@/lib/beerGameConfig";
 import { addParticipant } from "@/lib/games";
 import { prisma } from "@/lib/prisma";
 
@@ -36,6 +41,10 @@ export async function createSession(gameSlug: string, formData: FormData) {
           instructorId: profile.id,
           courseId,
           joinCode: randomJoinCode(),
+          // Write the defaults out rather than leaving config null, so the
+          // host's settings form and the stored record always agree on what
+          // the session is actually running.
+          config: DEFAULT_BEER_CONFIG,
         },
       });
       break;
@@ -69,9 +78,11 @@ export async function joinSessionByCode(formData: FormData) {
     throw new Error("No team found with that code.");
   }
 
-  if (session.status === "PENDING") {
-    // Best-effort: if the team is full or some other state issue
-    // prevents joining, still send them to the team page — its own
+  // ACTIVE is included deliberately: a student arriving late can still take
+  // over a Beer-GPT seat, which addParticipant handles.
+  if (session.status === "PENDING" || session.status === "ACTIVE") {
+    // Best-effort: if the session is full or some other state issue prevents
+    // joining, still send them to the session page — its own
     // PENDING/ACTIVE/COMPLETED views communicate the outcome.
     try {
       await addParticipant(session.id, profile.id);

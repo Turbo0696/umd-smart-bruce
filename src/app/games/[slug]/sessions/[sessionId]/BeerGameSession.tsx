@@ -1,17 +1,59 @@
-import { notFound } from "next/navigation";
-import { ROLE_ORDER } from "@/lib/beerGame";
-import { getCurrentProfile } from "@/lib/auth";
-import { LineChart } from "@/components/LineChart";
-import { PollingRefresher } from "@/components/PollingRefresher";
-import { prisma } from "@/lib/prisma";
-import { joinAsParticipant, startSession, submitOrder } from "./actions";
+// SPDX-License-Identifier: CC-BY-SA-4.0
+//
+// Routes a Beer Game session to the right view for who is looking at it, and
+// derives each view's data. See NOTICE.md for attribution.
 
-const ROLE_COLORS: Record<string, string> = {
-  RETAILER: "#2563eb",
-  WHOLESALER: "#16a34a",
-  DISTRIBUTOR: "#d97706",
-  FACTORY: "#dc2626",
+import { notFound } from "next/navigation";
+import { getCurrentProfile } from "@/lib/auth";
+import { ROLE_ORDER, type BeerGameRole } from "@/lib/beerGame";
+import { buildTeamAnalytics, type TeamAnalytics } from "@/lib/beerGameAnalytics";
+import { parseBeerConfig, type BeerGameConfig } from "@/lib/beerGameConfig";
+import { prisma } from "@/lib/prisma";
+import { BeerGameHostConsole, type HostTeamRow } from "./BeerGameHostConsole";
+import { BeerGameLobby, type LobbyMember } from "./BeerGameLobby";
+import { BeerGamePlayerBoard, type PlayerBoardData } from "./BeerGamePlayerBoard";
+import { BeerGameReport } from "./BeerGameReport";
+import { joinAsParticipant, submitOrder } from "./actions";
+
+/** Who a role buys from; null for the factory, which brews its own. */
+const UPSTREAM_OF: Record<BeerGameRole, BeerGameRole | null> = {
+  RETAILER: "WHOLESALER",
+  WHOLESALER: "DISTRIBUTOR",
+  DISTRIBUTOR: "FACTORY",
+  FACTORY: null,
 };
+
+// Written out rather than inferred from the Prisma client, so the shape the
+// views depend on is visible here and a schema change surfaces as a type error
+// at this seam instead of deep inside a view.
+type SeatRow = {
+  id: string;
+  role: BeerGameRole;
+  isRobot: boolean;
+  participantId: string | null;
+  participant: { user: { name: string | null; email: string } } | null;
+};
+
+type TeamRow = {
+  id: string;
+  name: string;
+  currentRound: number;
+  totalCost: number;
+  slots: SeatRow[];
+};
+
+type SessionData = {
+  id: string;
+  status: "PENDING" | "ACTIVE" | "COMPLETED";
+  totalRounds: number;
+  teams: TeamRow[];
+};
+
+/** Prefers a real name, falls back to the email we always have. */
+function seatName(slot: SeatRow): string | null {
+  if (!slot.participant) return null;
+  return slot.participant.user.name ?? slot.participant.user.email;
+}
 
 export async function BeerGameSession({
   slug,
@@ -25,7 +67,22 @@ export async function BeerGameSession({
       where: { id: sessionId },
       include: {
         game: true,
-        participants: { include: { user: true } },
+        participants: {
+          orderBy: { joinedAt: "asc" },
+          include: { user: { select: { name: true, email: true } } },
+        },
+        teams: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            slots: {
+              include: {
+                participant: {
+                  include: { user: { select: { name: true, email: true } } },
+                },
+              },
+            },
+          },
+        },
       },
     }),
     getCurrentProfile(),
@@ -35,267 +92,243 @@ export async function BeerGameSession({
     notFound();
   }
 
-  const viewerParticipant = profile
+  const config = parseBeerConfig(session.config);
+  const viewer = profile
     ? session.participants.find((p) => p.userId === profile.id)
     : undefined;
   const canManage =
     !!profile &&
     (profile.id === session.instructorId || profile.role === "ADMIN");
 
+  const data: SessionData = {
+    id: session.id,
+    status: session.status,
+    totalRounds: session.totalRounds,
+    teams: session.teams,
+  };
+
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-12">
+    <div className="mx-auto w-full max-w-5xl px-6 py-12">
       <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
         {session.game.name}
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500 print:hidden">
         Join code: <span className="font-mono">{session.joinCode}</span>
       </p>
 
       {session.status === "PENDING" && (
-        <PendingView
+        <BeerGameLobby
           slug={slug}
           sessionId={sessionId}
-          session={session}
-          viewerParticipant={viewerParticipant}
+          members={session.participants.map(
+            (p): LobbyMember => ({
+              id: p.id,
+              displayName: p.user.name ?? p.user.email,
+            }),
+          )}
+          config={config}
+          totalRounds={session.totalRounds}
+          viewerIsMember={!!viewer}
           canManage={canManage}
           isLoggedIn={!!profile}
+          joinAction={joinAsParticipant.bind(null, slug, sessionId)}
         />
       )}
 
-      {session.status === "ACTIVE" && (
-        <ActiveView
-          slug={slug}
-          sessionId={sessionId}
-          session={session}
-          viewerParticipant={viewerParticipant}
-        />
-      )}
+      {session.status === "ACTIVE" &&
+        (canManage ? (
+          <HostView slug={slug} sessionId={sessionId} session={data} />
+        ) : viewer ? (
+          <PlayerView
+            slug={slug}
+            sessionId={sessionId}
+            session={data}
+            config={config}
+            participantId={viewer.id}
+          />
+        ) : (
+          <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-500">
+            This session is already running and you don&apos;t have a seat in it.
+            If a classmate drops out a seat may open up — try the join code
+            again.
+          </p>
+        ))}
 
       {session.status === "COMPLETED" && (
         <CompletedView
-          session={session}
-          canView={!!viewerParticipant || canManage}
+          slug={slug}
+          sessionId={sessionId}
+          session={data}
+          viewerParticipantId={viewer?.id ?? null}
+          canManage={canManage}
         />
       )}
     </div>
   );
 }
 
-type SessionWithParticipants = NonNullable<
-  Awaited<ReturnType<typeof prisma.gameSession.findUnique>>
-> & {
-  game: { name: string };
-  participants: Array<{
-    id: string;
-    role: string;
-    userId: string;
-    user: { name: string | null; email: string };
-  }>;
-};
-
-function PendingView({
+async function HostView({
   slug,
   sessionId,
   session,
-  viewerParticipant,
-  canManage,
-  isLoggedIn,
 }: {
   slug: string;
   sessionId: string;
-  session: SessionWithParticipants;
-  viewerParticipant: SessionWithParticipants["participants"][number] | undefined;
-  canManage: boolean;
-  isLoggedIn: boolean;
+  session: SessionData;
 }) {
-  const full = session.participants.length >= 4;
-  const openRoles = ROLE_ORDER.filter(
-    (role) => !session.participants.some((p) => p.role === role),
+  const pendingOrders = await prisma.pendingOrder.findMany({
+    where: { sessionId },
+    select: { participantId: true, round: true },
+  });
+
+  const stagedRoundByParticipant = new Map(
+    pendingOrders.map((o) => [o.participantId, o.round]),
   );
-  const joinAction = joinAsParticipant.bind(null, slug, sessionId);
-  const startAction = startSession.bind(null, slug, sessionId);
+
+  const rows: HostTeamRow[] = session.teams.map((team) => ({
+    id: team.id,
+    name: team.name,
+    round: team.currentRound,
+    totalCost: team.totalCost,
+    finished: team.currentRound > session.totalRounds,
+    seats: ROLE_ORDER.flatMap((role) => {
+      const slot = team.slots.find((s) => s.role === role);
+      if (!slot) return [];
+      return [
+        {
+          slotId: slot.id,
+          role,
+          isRobot: slot.isRobot,
+          playerName: seatName(slot),
+          hasSubmitted:
+            !!slot.participantId &&
+            stagedRoundByParticipant.get(slot.participantId) ===
+              team.currentRound,
+        },
+      ];
+    }),
+  }));
 
   return (
-    <div className="mt-8">
-      <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-        Team roster ({session.participants.length}/4)
-      </h2>
-      <ul className="mt-3 flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
-        {ROLE_ORDER.map((role) => {
-          const p = session.participants.find((p) => p.role === role);
-          return (
-            <li
-              key={role}
-              className="flex justify-between rounded border border-zinc-100 px-3 py-2 dark:border-zinc-800"
-            >
-              <span>{role}</span>
-              <span className="text-zinc-500 dark:text-zinc-500">
-                {p ? p.user.name ?? p.user.email : "open"}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-
-      {!viewerParticipant && isLoggedIn && !full && (
-        <form action={joinAction} className="mt-4">
-          <button
-            type="submit"
-            className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            Join this team
-          </button>
-        </form>
-      )}
-
-      {!isLoggedIn && (
-        <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
-          Log in to join.
-        </p>
-      )}
-
-      {viewerParticipant && !full && (
-        <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
-          You&apos;re in as <strong>{viewerParticipant.role}</strong>. Waiting
-          for more players.
-        </p>
-      )}
-
-      {canManage && full && (
-        <form action={startAction} className="mt-4">
-          <button
-            type="submit"
-            className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            Start game
-          </button>
-        </form>
-      )}
-
-      {canManage && !full && session.participants.length >= 1 && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
-          <p className="text-sm text-amber-800 dark:text-amber-300">
-            Short on players? You can start anyway — {openRoles.join(", ")}{" "}
-            will be auto-played (each round it simply orders what it
-            received).
-          </p>
-          <form action={startAction} className="mt-3">
-            <button
-              type="submit"
-              className="rounded-full border border-amber-300 bg-white px-5 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/40"
-            >
-              Start anyway ({session.participants.length}/4)
-            </button>
-          </form>
-        </div>
-      )}
-
-      {!canManage && full && !viewerParticipant?.role && (
-        <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
-          This team is full.
-        </p>
-      )}
-
-      <PollingRefresher />
-    </div>
+    <BeerGameHostConsole
+      slug={slug}
+      sessionId={sessionId}
+      teams={rows}
+      totalRounds={session.totalRounds}
+    />
   );
 }
 
-async function ActiveView({
+async function PlayerView({
   slug,
   sessionId,
   session,
-  viewerParticipant,
+  config,
+  participantId,
 }: {
   slug: string;
   sessionId: string;
-  session: SessionWithParticipants;
-  viewerParticipant: SessionWithParticipants["participants"][number] | undefined;
+  session: SessionData;
+  config: BeerGameConfig;
+  participantId: string;
 }) {
-  if (!viewerParticipant) {
+  const team = session.teams.find((t) =>
+    t.slots.some((s) => s.participantId === participantId),
+  );
+  const slot = team?.slots.find((s) => s.participantId === participantId);
+
+  if (!team || !slot) {
     return (
       <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-500">
-        This team is already in progress and you&apos;re not a participant.
+        You&apos;re enrolled in this session but haven&apos;t been given a seat.
+        Your instructor can sort this out from their console.
       </p>
     );
   }
 
-  const [latestRound, myPendingOrder] = await Promise.all([
-    prisma.gameRoundState.findFirst({
-      where: { participantId: viewerParticipant.id },
-      orderBy: { round: "desc" },
-    }),
-    prisma.pendingOrder.findUnique({
-      where: {
-        participantId_round: {
-          participantId: viewerParticipant.id,
-          round: session.currentRound,
-        },
-      },
-    }),
-  ]);
+  const round = team.currentRound;
+  const finished = round > session.totalRounds;
+  const upstreamRole = UPSTREAM_OF[slot.role];
 
-  const submitAction = submitOrder.bind(null, slug, sessionId);
-  const inventory = latestRound?.inventory ?? 12;
-  const backlog = latestRound?.backlog ?? 0;
-  const incomingOrderLastRound = latestRound?.incomingOrder;
+  const [myLast, upstreamLast, myHistory, teamPending, myStaged] =
+    await Promise.all([
+      prisma.gameRoundState.findFirst({
+        where: { teamId: team.id, role: slot.role },
+        orderBy: { round: "desc" },
+      }),
+      config.showUpstreamBacklog && upstreamRole
+        ? prisma.gameRoundState.findFirst({
+            where: { teamId: team.id, role: upstreamRole },
+            orderBy: { round: "desc" },
+          })
+        : null,
+      prisma.gameRoundState.findMany({
+        where: { teamId: team.id, role: slot.role },
+        orderBy: { round: "asc" },
+        select: { outgoingOrder: true },
+      }),
+      prisma.pendingOrder.findMany({
+        where: { teamId: team.id, round },
+        select: { participantId: true },
+      }),
+      prisma.pendingOrder.findUnique({
+        where: { participantId_round: { participantId, round } },
+        select: { amount: true },
+      }),
+    ]);
+
+  const humanSeats = team.slots.filter(
+    (s) => !s.isRobot && s.participantId,
+  ).length;
+
+  const data: PlayerBoardData = {
+    teamName: team.name,
+    role: slot.role,
+    round: finished ? session.totalRounds : round,
+    totalRounds: session.totalRounds,
+    teamTotalCost: team.totalCost,
+    // Before round 1 resolves there is no history, so fall back to the
+    // configured opening position.
+    inventory: myLast?.inventory ?? config.initialInventory,
+    backlog: myLast?.backlog ?? 0,
+    // Deliberately last round's figures. Because every stage resolves
+    // simultaneously, this round's incoming order isn't known until after
+    // everyone has ordered — so what a player reasons from is what they were
+    // asked for last round. The labels on the board say so.
+    lastIncomingOrder: myLast?.incomingOrder ?? config.pipelineSeed,
+    lastIncomingShipment: myLast?.incomingShipment ?? config.pipelineSeed,
+    upstreamBacklog: config.showUpstreamBacklog
+      ? (upstreamLast?.backlog ?? null)
+      : null,
+    upstreamRole: config.showUpstreamBacklog ? upstreamRole : null,
+    submittedAmount: myStaged?.amount ?? null,
+    waitingOn: Math.max(humanSeats - teamPending.length, 0),
+    myOrderHistory: myHistory.map((r) => r.outgoingOrder),
+    finished,
+  };
 
   return (
-    <div className="mt-8">
-      <p className="text-sm text-zinc-500 dark:text-zinc-500">
-        Round {session.currentRound} of {session.totalRounds} — your role:{" "}
-        <strong>{viewerParticipant.role}</strong>
-      </p>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Inventory" value={inventory} />
-        <Stat label="Backlog" value={backlog} />
-        {incomingOrderLastRound !== undefined && (
-          <Stat label="Last incoming order" value={incomingOrderLastRound} />
-        )}
-      </div>
-
-      {myPendingOrder ? (
-        <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
-          Order submitted ({myPendingOrder.amount} units). Waiting for other
-          players to submit round {session.currentRound}...
-        </p>
-      ) : (
-        <form action={submitAction} className="mt-6 flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            Your order for round {session.currentRound}
-            <input
-              type="number"
-              name="amount"
-              min={0}
-              step={1}
-              required
-              defaultValue={incomingOrderLastRound ?? 4}
-              className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-            />
-          </label>
-          <button
-            type="submit"
-            className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            Submit order
-          </button>
-        </form>
-      )}
-
-      <PollingRefresher />
-    </div>
+    <BeerGamePlayerBoard
+      data={data}
+      submitAction={submitOrder.bind(null, slug, sessionId)}
+    />
   );
 }
 
 async function CompletedView({
+  slug,
+  sessionId,
   session,
-  canView,
+  viewerParticipantId,
+  canManage,
 }: {
-  session: SessionWithParticipants;
-  canView: boolean;
+  slug: string;
+  sessionId: string;
+  session: SessionData;
+  viewerParticipantId: string | null;
+  canManage: boolean;
 }) {
-  if (!canView) {
+  if (!viewerParticipantId && !canManage) {
     return (
       <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-500">
         This game has ended.
@@ -304,81 +337,45 @@ async function CompletedView({
   }
 
   const rounds = await prisma.gameRoundState.findMany({
-    where: { sessionId: session.id },
+    where: { sessionId },
     orderBy: { round: "asc" },
+    select: {
+      teamId: true,
+      role: true,
+      round: true,
+      outgoingOrder: true,
+      cost: true,
+    },
   });
 
-  const ordersByRole: Record<string, number[]> = {};
-  const totalCostByRole: Record<string, number> = {};
-
-  for (const role of ROLE_ORDER) {
-    ordersByRole[role] = [];
-    totalCostByRole[role] = 0;
-  }
+  const rowsByTeam = new Map<string, typeof rounds>();
   for (const row of rounds) {
-    ordersByRole[row.role][row.round - 1] = row.outgoingOrder;
-    totalCostByRole[row.role] += row.cost;
+    const bucket = rowsByTeam.get(row.teamId) ?? [];
+    bucket.push(row);
+    rowsByTeam.set(row.teamId, bucket);
   }
 
-  const botRoles = new Set(
-    ROLE_ORDER.filter((role) => !session.participants.some((p) => p.role === role)),
+  const teams: TeamAnalytics[] = session.teams.map((team) =>
+    buildTeamAnalytics(
+      { id: team.id, name: team.name, totalCost: team.totalCost },
+      rowsByTeam.get(team.id) ?? [],
+      team.slots.filter((s) => s.isRobot).length,
+    ),
   );
 
-  return (
-    <div className="mt-8">
-      <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-        Game complete — orders placed per round
-      </h2>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
-        This is the bullwhip effect: watch how order variance grows as you
-        move from Retailer toward Factory.
-      </p>
-      <div className="mt-6">
-        <LineChart
-          series={ROLE_ORDER.map((role) => ({
-            label: role,
-            color: ROLE_COLORS[role],
-            points: ordersByRole[role].map((v) => v ?? 0),
-          }))}
-        />
-      </div>
+  const viewerTeamId =
+    session.teams.find((t) =>
+      t.slots.some((s) => s.participantId === viewerParticipantId),
+    )?.id ?? null;
 
-      <h3 className="mt-8 font-semibold text-zinc-900 dark:text-zinc-50">
-        Total cost by role
-      </h3>
-      <table className="mt-3 w-full text-sm">
-        <tbody>
-          {ROLE_ORDER.map((role) => (
-            <tr
-              key={role}
-              className="border-b border-zinc-100 dark:border-zinc-800"
-            >
-              <td className="py-2 text-zinc-700 dark:text-zinc-300">
-                {role}
-                {botRoles.has(role) && (
-                  <span className="ml-1.5 text-xs text-zinc-500 dark:text-zinc-500">
-                    (auto)
-                  </span>
-                )}
-              </td>
-              <td className="py-2 text-right text-zinc-900 dark:text-zinc-50">
-                ${totalCostByRole[role].toFixed(2)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-      <p className="text-xs text-zinc-500 dark:text-zinc-500">{label}</p>
-      <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-        {value}
-      </p>
-    </div>
+    <BeerGameReport
+      slug={slug}
+      sessionId={sessionId}
+      teams={teams}
+      totalRounds={session.totalRounds}
+      viewerTeamId={viewerTeamId}
+      canManage={canManage}
+    />
   );
 }
