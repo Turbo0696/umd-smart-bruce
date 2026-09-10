@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+# Same, but without the leading dot — how these files often arrive by
+# email or chat. `.env*` does not match them, so they need their own rule.
+/env
+/env.*
 
 # local notes with live credentials — never commit
 demo-accounts.md
