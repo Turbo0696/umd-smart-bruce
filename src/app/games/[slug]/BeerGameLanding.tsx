@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+//
+// Beer Game entry point. See NOTICE.md for attribution to siemsene/beergame.
+
 import type { Game, Profile } from "@prisma/client";
 import { createSession, joinSessionByCode } from "./actions";
 
@@ -24,7 +28,7 @@ export function BeerGameLanding({
 
       {!profile && (
         <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-500">
-          Log in to create or join a team.
+          Log in to run or join a session.
         </p>
       )}
 
@@ -33,6 +37,11 @@ export function BeerGameLanding({
           action={createSessionForGame}
           className="mt-8 flex flex-col gap-3 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800"
         >
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            One session holds your whole class. Share its join code, and when
+            everyone is in, starting the game splits them into supply chains of
+            four at random.
+          </p>
           {instructorCourses && instructorCourses.length > 0 && (
             <label className="flex flex-col gap-1 text-sm">
               Assign to a course (optional)
@@ -54,7 +63,7 @@ export function BeerGameLanding({
             type="submit"
             className="w-full rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Create a new team
+            Create a session
           </button>
         </form>
       )}
@@ -77,10 +86,33 @@ export function BeerGameLanding({
             type="submit"
             className="self-start rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
           >
-            Join team
+            Join session
           </button>
         </form>
       )}
+
+      <p className="mt-10 border-t border-zinc-200 pt-4 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-500">
+        Classroom format adapted from{" "}
+        <a
+          className="underline"
+          href="https://github.com/siemsene/beergame"
+          target="_blank"
+          rel="noreferrer"
+        >
+          The Beer Game
+        </a>{" "}
+        by GitHub user siemsene, licensed{" "}
+        <a
+          className="underline"
+          href="https://creativecommons.org/licenses/by-sa/4.0/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          CC BY-SA 4.0
+        </a>
+        ; modified. The underlying simulation is the classic MIT Sloan beer game
+        (Jay Forrester; popularised by John Sterman).
+      </p>
     </div>
   );
 }

@@ -29,6 +29,33 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Attribution & license
+
+The Beer Game in this project is an adaptation of
+[The Beer Game](https://github.com/siemsene/beergame) by GitHub user **siemsene**,
+used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) and
+modified. The Beer Game source files are therefore licensed CC BY-SA 4.0 (they
+carry an `SPDX-License-Identifier` header); the rest of this repository is not.
+
+See **[NOTICE.md](./NOTICE.md)** for what was taken, what was changed, exactly
+which files the license covers, and a note on the two conflicting licenses
+upstream states. Full license text: [`LICENSE-CC-BY-SA-4.0.txt`](./LICENSE-CC-BY-SA-4.0.txt).
+
+## Tests
+
+```bash
+npm test        # Vitest, unit tests for the Beer Game logic — no database needed
+npm run test:watch
+```
+
+`src/lib/beerGameParity.test.ts` checks the simulation against a fixture
+generated from siemsene/beergame's own engine. To regenerate that fixture:
+
+```bash
+git clone --depth 1 https://github.com/siemsene/beergame.git /tmp/beergame
+node scripts/generate-parity-fixture.mts /tmp/beergame
+```
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
