@@ -13,6 +13,7 @@ import {
   lotForLotSchedule,
   optimalProcurement,
   retailerSettlement,
+  roundDeadlineFrom,
   settleDyad,
   settleMonths,
   shuffleSeeded,
@@ -328,5 +329,23 @@ describe("shuffleSeeded", () => {
     const items = [1, 2, 3, 4, 5, 6, 7, 8];
     expect(shuffleSeeded(items, 42)).toEqual(shuffleSeeded(items, 42));
     expect(shuffleSeeded(items, 42)).not.toEqual(shuffleSeeded(items, 43));
+  });
+});
+
+describe("roundDeadlineFrom — the advisory round clock", () => {
+  const start = new Date("2026-01-01T00:00:00.000Z");
+
+  it("is exactly start + roundMinutes", () => {
+    const deadline = roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: 5 });
+    expect(deadline).toEqual(new Date("2026-01-01T00:05:00.000Z"));
+  });
+
+  it("is null when no limit is configured", () => {
+    expect(roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: null })).toBeNull();
+  });
+
+  it("is null for a non-positive limit rather than a deadline already in the past", () => {
+    expect(roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: 0 })).toBeNull();
+    expect(roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: -5 })).toBeNull();
   });
 });

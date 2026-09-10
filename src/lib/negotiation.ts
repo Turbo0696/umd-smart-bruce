@@ -490,3 +490,15 @@ export function shuffleSeeded<T>(items: readonly T[], seed: number): T[] {
   }
   return arr;
 }
+
+// --- Advisory round clock ---
+//
+// Not enforced by anything (no cron, no realtime in this app) — this only
+// computes WHAT the deadline is, for display. The caller decides when a
+// stage/round actually opens (and therefore when to call this) and is the
+// one place that touches wall-clock time; this function stays pure and
+// testable by taking `start` as an argument instead of reading Date.now().
+export function roundDeadlineFrom(start: Date, config: NegotiationConfig): Date | null {
+  if (config.roundMinutes == null || config.roundMinutes <= 0) return null;
+  return new Date(start.getTime() + config.roundMinutes * 60_000);
+}

@@ -10,6 +10,7 @@ import {
   clampQuantities,
   coordinationLoss,
   hashSeed,
+  roundDeadlineFrom,
   settleDyad,
   type NegotiationConfig,
 } from "@/lib/negotiation";
@@ -68,9 +69,14 @@ export async function startSession(gameSlug: string, sessionId: string) {
   }
 
   await createDyadsForSession(sessionId);
+  const startedAt = new Date();
   await prisma.negotiationSession.update({
     where: { id: sessionId },
-    data: { status: "ACTIVE", startedAt: new Date() },
+    data: {
+      status: "ACTIVE",
+      startedAt,
+      roundDeadlineAt: roundDeadlineFrom(startedAt, configFromSession(session)),
+    },
   });
 
   await drive(sessionId, {});
@@ -507,6 +513,7 @@ async function tryAdvanceStage(sessionId: string): Promise<boolean> {
     include: { dyads: true },
   });
   if (session.status !== "ACTIVE") return false;
+  const config = configFromSession(session);
 
   if (session.stage === "RFQ") {
     const allSubmitted = session.dyads.length > 0 && session.dyads.every((d) => d.rfqQuantities != null);
@@ -516,7 +523,11 @@ async function tryAdvanceStage(sessionId: string): Promise<boolean> {
       await prisma.$transaction([
         prisma.negotiationSession.update({
           where: { id: sessionId },
-          data: { stage: "NEGOTIATION", currentRound: 1 },
+          data: {
+            stage: "NEGOTIATION",
+            currentRound: 1,
+            roundDeadlineAt: roundDeadlineFrom(new Date(), config),
+          },
         }),
         prisma.negotiationDyad.updateMany({ where: { sessionId }, data: { status: "NEGOTIATING" } }),
         prisma.negotiationRound.createMany({
@@ -546,7 +557,10 @@ async function tryAdvanceStage(sessionId: string): Promise<boolean> {
 
     if (activeDyads.length === 0) {
       try {
-        await prisma.negotiationSession.update({ where: { id: sessionId }, data: { stage: "SETTLEMENT" } });
+        await prisma.negotiationSession.update({
+          where: { id: sessionId },
+          data: { stage: "SETTLEMENT", roundDeadlineAt: null },
+        });
         return true;
       } catch {
         return false;
@@ -556,7 +570,10 @@ async function tryAdvanceStage(sessionId: string): Promise<boolean> {
     const nextRound = round + 1;
     try {
       await prisma.$transaction([
-        prisma.negotiationSession.update({ where: { id: sessionId }, data: { currentRound: nextRound } }),
+        prisma.negotiationSession.update({
+          where: { id: sessionId },
+          data: { currentRound: nextRound, roundDeadlineAt: roundDeadlineFrom(new Date(), config) },
+        }),
         prisma.negotiationRound.createMany({
           data: activeDyads.map((d) => ({ sessionId, dyadId: d.id, round: nextRound })),
         }),
@@ -573,7 +590,6 @@ async function tryAdvanceStage(sessionId: string): Promise<boolean> {
     const allProcured = agreedDyads.every((d) => d.procurementSchedule != null);
     if (!allProcured) return false;
 
-    const config = configFromSession(session);
     const central = centralizedOptimum(config);
 
     const outcomeRows: Prisma.NegotiationOutcomeCreateManyInput[] = [];

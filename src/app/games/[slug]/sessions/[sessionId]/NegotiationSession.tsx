@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { NegotiationRole } from "@prisma/client";
 import { getCurrentProfile } from "@/lib/auth";
 import { BarChart } from "@/components/BarChart";
+import { CountdownTimer } from "@/components/CountdownTimer";
 import {
   centralizedOptimum,
   optimalProcurement,
@@ -278,6 +279,13 @@ function ActiveView({
     return seats;
   });
 
+  const stageLabel =
+    session.stage === "RFQ"
+      ? "this stage"
+      : session.stage === "NEGOTIATION"
+        ? `round ${session.currentRound}`
+        : "this stage";
+
   return (
     <div className="mt-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -287,6 +295,9 @@ function ActiveView({
             `Stage: negotiation — round ${session.currentRound} of ${session.totalRounds}`}
           {session.stage === "SETTLEMENT" && "Stage: settlement"}
         </p>
+        {session.roundDeadlineAt && (
+          <CountdownTimer deadline={session.roundDeadlineAt.toISOString()} label={stageLabel} />
+        )}
       </div>
 
       {!viewerParticipant && profileId && openSeats.length > 0 && (
