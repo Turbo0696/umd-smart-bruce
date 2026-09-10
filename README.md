@@ -56,6 +56,23 @@ git clone --depth 1 https://github.com/siemsene/beergame.git /tmp/beergame
 node scripts/generate-parity-fixture.mts /tmp/beergame
 ```
 
+### Rehearsing the Beer Game database migration
+
+`prisma/sql/beer-game-cohorts.sql` is DDL against a live database — it retires
+`GameParticipant.role` and makes two columns `NOT NULL` — so it comes with a
+rehearsal harness:
+
+```bash
+node scripts/verify-cohort-migration.mjs
+```
+
+It builds a pre-cohort replica of the four Beer Game tables in a scratch schema,
+seeds the two cases that matter (a session with gameplay history, and an
+untouched `PENDING` session), runs the migration against it twice, asserts 17
+outcomes, and rolls the whole thing back. `search_path` excludes `public`, so
+your own tables are neither read nor written. Needs `DIRECT_URL` in `.env`;
+exits non-zero if anything fails.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
