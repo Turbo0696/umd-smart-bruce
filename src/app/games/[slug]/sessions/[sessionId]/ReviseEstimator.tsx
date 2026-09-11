@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { retailerSettlement, type NegotiationConfig } from "@/lib/negotiation";
+import { DemandWarning } from "./DemandWarning";
+import { MonthlyBreakdownTable } from "./MonthlyBreakdownTable";
 
 // Nested inside ResponseForm's server-rendered <form> in NegotiationSession.tsx
 // — the enclosing form still submits through the same submitResponse action;
@@ -21,14 +23,21 @@ export function ReviseEstimator({
   initialPrice: number | null;
   initialQuantities: number[];
 }) {
-  const [price, setPrice] = useState<number>(() => initialPrice ?? config.retailPrice / 2);
-  const [quantities, setQuantities] = useState<number[]>(() => [...initialQuantities]);
+  // "" is a real, distinct state from 0 — a cell mid-backspace should look
+  // blank, not snap back to a displayed "0" on every keystroke. Both fall
+  // back to 0 for the live estimate below, and the server treats a blank
+  // submission as 0 too (clampPrice/clampQuantities), so "" never needs to
+  // survive past this component.
+  const [price, setPrice] = useState<number | "">(() => initialPrice ?? config.retailPrice / 2);
+  const [quantities, setQuantities] = useState<Array<number | "">>(() => [...initialQuantities]);
 
-  const estimate = retailerSettlement(price, quantities, config);
+  const numericPrice = price === "" ? 0 : price;
+  const numericQuantities = quantities.map((q) => (q === "" ? 0 : q));
+  const estimate = retailerSettlement(numericPrice, numericQuantities, config);
 
   function updateQuantity(i: number, raw: string) {
-    const n = Math.max(0, Math.round(Number(raw) || 0));
-    setQuantities((prev) => prev.map((v, idx) => (idx === i ? n : v)));
+    const next: number | "" = raw === "" ? "" : Math.max(0, Math.round(Number(raw) || 0));
+    setQuantities((prev) => prev.map((v, idx) => (idx === i ? next : v)));
   }
 
   return (
@@ -42,7 +51,7 @@ export function ReviseEstimator({
           max={config.retailPrice}
           step="0.01"
           value={price}
-          onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))}
+          onChange={(e) => setPrice(e.target.value === "" ? "" : Math.max(0, Number(e.target.value) || 0))}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
         />
       </label>
@@ -50,19 +59,33 @@ export function ReviseEstimator({
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {config.horizonLabels.map((label, i) => (
           <label key={label} className="flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-400">
-            {label}
+            {label}{" "}
+            <span className="text-zinc-400 dark:text-zinc-500">(your demand: {config.monthlyDemand[i]})</span>
             <input
               type="number"
               name={`qty-${i}`}
               min={0}
               step={1}
-              value={quantities[i] ?? 0}
+              value={quantities[i]}
               onChange={(e) => updateQuantity(i, e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             />
           </label>
         ))}
       </div>
+
+      <DemandWarning units={estimate.unmetDemand}>
+        {estimate.unmetDemand} unit{estimate.unmetDemand === 1 ? "" : "s"} of your own demand would go
+        unmet if they agree to this — that&apos;s lost sales you won&apos;t get back.
+      </DemandWarning>
+
+      <MonthlyBreakdownTable
+        horizonLabels={config.horizonLabels}
+        need={config.monthlyDemand}
+        supply={numericQuantities}
+        needLabel="Your demand"
+        supplyLabel="You'd ask for"
+      />
 
       <div className="mt-2 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <div>

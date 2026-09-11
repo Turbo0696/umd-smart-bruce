@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { retailerSettlement, type NegotiationConfig } from "@/lib/negotiation";
+import { hashSeed, mulberry32, retailerSettlement, type NegotiationConfig } from "@/lib/negotiation";
+import { DemandWarning } from "./DemandWarning";
+import { MonthlyBreakdownTable } from "./MonthlyBreakdownTable";
 import { submitRfq } from "./negotiation-actions";
 
 // The RFQ form is interactive (unlike every other form in this game, which
@@ -15,27 +17,42 @@ import { submitRfq } from "./negotiation-actions";
 export function RfqEstimator({
   slug,
   sessionId,
+  dyadId,
   config,
 }: {
   slug: string;
   sessionId: string;
+  dyadId: string;
   config: NegotiationConfig;
 }) {
   const action = submitRfq.bind(null, slug, sessionId);
-  const [quantities, setQuantities] = useState<number[]>(() => [...config.monthlyDemand]);
+  // "" is a real, distinct state from 0 — it's what a cell looks like while
+  // the field is empty (e.g. mid-backspace), so the box can actually go
+  // blank instead of snapping back to a displayed "0" on every keystroke.
+  // Computations below always fall back to 0 for "", so an unfinished edit
+  // never breaks the live estimate; the server treats a blank submission as
+  // 0 too (clampQuantities), so nothing downstream needs to know about "".
+  const [quantities, setQuantities] = useState<Array<number | "">>(() => [...config.monthlyDemand]);
   // The retailer knows retailPrice and salvagePrice (both common knowledge)
-  // but not the wholesaler's cost, so there's no "correct" starting guess —
-  // the midpoint of what they DO know is a defensible, fully-adjustable
-  // starting point, not a hint about where the price will land.
-  const [price, setPrice] = useState<number>(
-    () => Math.round(((config.retailPrice + config.salvagePrice) / 2) * 100) / 100,
-  );
+  // but not the wholesaler's cost, so a starting guess anywhere in that
+  // known range is defensible — a fixed midpoint just risked reading as a
+  // "here's the fair price" hint. Seeded (not Math.random()) so the server's
+  // first render and the client's hydration compute the identical number —
+  // same hashSeed+mulberry32 pattern the bot profiles already use — while
+  // still landing on a different spot per dyad rather than one shared value
+  // every retailer sees.
+  const [price, setPrice] = useState<number | "">(() => {
+    const t = mulberry32(hashSeed(sessionId, dyadId, "hypothetical-price"))();
+    return Math.round((config.salvagePrice + t * (config.retailPrice - config.salvagePrice)) * 100) / 100;
+  });
 
-  const estimate = retailerSettlement(price, quantities, config);
+  const numericQuantities = quantities.map((q) => (q === "" ? 0 : q));
+  const numericPrice = price === "" ? 0 : price;
+  const estimate = retailerSettlement(numericPrice, numericQuantities, config);
 
   function updateQuantity(i: number, raw: string) {
-    const n = Math.max(0, Math.round(Number(raw) || 0));
-    setQuantities((prev) => prev.map((v, idx) => (idx === i ? n : v)));
+    const next: number | "" = raw === "" ? "" : Math.max(0, Math.round(Number(raw) || 0));
+    setQuantities((prev) => prev.map((v, idx) => (idx === i ? next : v)));
   }
 
   return (
@@ -50,13 +67,14 @@ export function RfqEstimator({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {config.horizonLabels.map((label, i) => (
           <label key={label} className="flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-400">
-            {label}
+            {label}{" "}
+            <span className="text-zinc-400 dark:text-zinc-500">(your demand: {config.monthlyDemand[i]})</span>
             <input
               type="number"
               name={`qty-${i}`}
               min={0}
               step={1}
-              value={quantities[i] ?? 0}
+              value={quantities[i]}
               onChange={(e) => updateQuantity(i, e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             />
@@ -75,7 +93,7 @@ export function RfqEstimator({
             max={config.retailPrice}
             step="0.01"
             value={price}
-            onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))}
+            onChange={(e) => setPrice(e.target.value === "" ? "" : Math.max(0, Number(e.target.value) || 0))}
             className="mt-1 w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
         </label>
@@ -91,12 +109,18 @@ export function RfqEstimator({
           />
         </div>
 
-        {estimate.unmetDemand > 0 && (
-          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-            {estimate.unmetDemand} unit{estimate.unmetDemand === 1 ? "" : "s"} of demand would go
-            unmet with this schedule.
-          </p>
-        )}
+        <DemandWarning units={estimate.unmetDemand}>
+          {estimate.unmetDemand} unit{estimate.unmetDemand === 1 ? "" : "s"} of your own demand would
+          go unmet with this schedule — that&apos;s lost sales you won&apos;t get back.
+        </DemandWarning>
+
+        <MonthlyBreakdownTable
+          horizonLabels={config.horizonLabels}
+          need={config.monthlyDemand}
+          supply={numericQuantities}
+          needLabel="Your demand"
+          supplyLabel="You'd request"
+        />
 
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
           Only an estimate at the price you just typed — it updates as you

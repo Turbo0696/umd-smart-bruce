@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import type { NegotiationRole } from "@prisma/client";
 import { getCurrentProfile } from "@/lib/auth";
-import { BarChart } from "@/components/BarChart";
 import { CountdownTimer } from "@/components/CountdownTimer";
-import { centralizedOptimum, retailerSettlement, type NegotiationConfig } from "@/lib/negotiation";
+import { centralizedOptimum, retailerSettlement, settleDyad, type NegotiationConfig } from "@/lib/negotiation";
 import { configFromSession } from "@/lib/negotiationGames";
 import { PollingRefresher } from "@/components/PollingRefresher";
 import { prisma } from "@/lib/prisma";
@@ -12,10 +11,13 @@ import {
   forceAdvance,
   joinAsParticipant,
   kickToBot,
+  refuseSettlement,
   startSession,
   submitProcurement,
   submitResponse,
 } from "./negotiation-actions";
+import { MonthlyBreakdownTable } from "./MonthlyBreakdownTable";
+import { ProfitAllocationChart } from "./ProfitAllocationChart";
 import { ProposalEstimator } from "./ProposalEstimator";
 import { ReviseEstimator } from "./ReviseEstimator";
 import { RfqEstimator } from "./RfqEstimator";
@@ -392,7 +394,7 @@ async function DyadPanel({
         dyad.rfqQuantities == null ? (
           <>
             <NegotiationReferenceInfo config={config} viewerRole="RETAILER" />
-            <RfqEstimator slug={slug} sessionId={sessionId} config={config} />
+            <RfqEstimator slug={slug} sessionId={sessionId} dyadId={dyad.id} config={config} />
           </>
         ) : (
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -600,29 +602,27 @@ function ResponseForm({
         Their offer: ${round.proposalPrice?.toFixed(2)}/unit, {quantities.join(", ")} units
       </p>
       {acceptEstimate && (
-        <p className="text-xs text-zinc-500 dark:text-zinc-500">
-          If you accept this exactly as offered, your estimated profit: $
-          {Math.round(acceptEstimate.profit).toLocaleString()}
-          {acceptEstimate.unmetDemand > 0 &&
-            ` (${acceptEstimate.unmetDemand} units of demand would go unmet)`}
-        </p>
+        <>
+          <p className="text-xs text-zinc-500 dark:text-zinc-500">
+            If you accept this exactly as offered, your estimated profit: $
+            {Math.round(acceptEstimate.profit).toLocaleString()}
+            {acceptEstimate.unmetDemand > 0 &&
+              ` (${acceptEstimate.unmetDemand} units of demand would go unmet)`}
+          </p>
+          <MonthlyBreakdownTable
+            horizonLabels={config.horizonLabels}
+            need={config.monthlyDemand}
+            supply={quantities}
+            needLabel="Your demand"
+            supplyLabel="Their offer"
+          />
+        </>
       )}
       {round.proposalNote && (
         <p className="rounded bg-zinc-50 p-2 text-xs text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-400">
           &quot;{round.proposalNote}&quot;
         </p>
       )}
-
-      <div className="flex flex-wrap gap-4 text-sm text-zinc-700 dark:text-zinc-300">
-        <label className="flex items-center gap-2">
-          <input type="radio" name="kind" value="ACCEPT" defaultChecked />
-          Accept this offer
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" name="kind" value={isFinalRound ? "REJECT" : "REVISE"} />
-          {isFinalRound ? "Reject — end without a contract" : "Request a revision"}
-        </label>
-      </div>
 
       {!isFinalRound && (
         <div className="rounded-md border border-dashed border-zinc-200 p-3 dark:border-zinc-700">
@@ -646,12 +646,24 @@ function ResponseForm({
 
       {config.allowNotes && <NoteField maxLength={config.noteMaxLength} />}
 
-      <button
-        type="submit"
-        className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
-        Send response
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="submit"
+          name="kind"
+          value="ACCEPT"
+          className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          Accept this offer
+        </button>
+        <button
+          type="submit"
+          name="kind"
+          value={isFinalRound ? "REJECT" : "REVISE"}
+          className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+        >
+          {isFinalRound ? "Reject — end without a contract" : "Send counter-proposal"}
+        </button>
+      </div>
     </form>
   );
 }
@@ -669,20 +681,28 @@ function SettlementPanel({
   viewerRole: NegotiationRole;
   config: NegotiationConfig;
 }) {
+  const refuseAction = refuseSettlement.bind(null, slug, sessionId);
+
   if (viewerRole === "RETAILER") {
     return (
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Your wholesaler is finalizing their procurement schedule. Nothing
-        more to do on your end.
-      </p>
+      <>
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          Your wholesaler is finalizing their procurement schedule. Nothing
+          more to do on your end.
+        </p>
+        <RefuseContractForm action={refuseAction} />
+      </>
     );
   }
 
   if (dyad.procurementSchedule != null) {
     return (
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Procurement schedule submitted. Waiting for other dyads to finish.
-      </p>
+      <>
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          Procurement schedule submitted. Waiting for other dyads to finish.
+        </p>
+        <RefuseContractForm action={refuseAction} />
+      </>
     );
   }
 
@@ -690,23 +710,44 @@ function SettlementPanel({
   const action = submitProcurement.bind(null, slug, sessionId);
 
   return (
-    <form action={action} className="mt-3 flex flex-col gap-3">
-      <p className="text-sm text-zinc-700 dark:text-zinc-300">
-        You agreed to deliver {agreedQuantities.join(", ")} units. Decide how
-        much to order from your manufacturer, and when — you can consolidate
-        orders, but your running total on hand must always cover what
-        you&apos;ve committed to deliver by that point.
+    <>
+      <form action={action} className="mt-3 flex flex-col gap-3">
+        <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          You agreed to deliver {agreedQuantities.join(", ")} units. Decide how
+          much to order from your manufacturer, and when — you can consolidate
+          orders, but your running total on hand must always cover what
+          you&apos;ve committed to deliver by that point.
+        </p>
+        <QuantityFields
+          namePrefix="qty-"
+          horizonLabels={config.horizonLabels}
+          defaultValues={agreedQuantities}
+        />
+        <button
+          type="submit"
+          className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          Submit procurement schedule
+        </button>
+      </form>
+      <RefuseContractForm action={refuseAction} />
+    </>
+  );
+}
+
+function RefuseContractForm({ action }: { action: () => Promise<void> }) {
+  return (
+    <form action={action} className="mt-3">
+      <p className="text-xs text-zinc-500 dark:text-zinc-500">
+        Changed your mind? You can still walk away — this ends the deal with
+        no profit for either side, the same as a negotiation that never
+        closed.
       </p>
-      <QuantityFields
-        namePrefix="qty-"
-        horizonLabels={config.horizonLabels}
-        defaultValues={agreedQuantities}
-      />
       <button
         type="submit"
-        className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        className="mt-2 rounded-full border border-zinc-300 px-4 py-1.5 text-sm font-medium text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
       >
-        Submit procurement schedule
+        Refuse this contract
       </button>
     </form>
   );
@@ -863,6 +904,27 @@ async function CompletedView({
   const dealtCount = session.dyads.filter((d) => d.status === "AGREED").length;
   const centralizedProfit = results[0]?.centralizedProfit ?? centralizedOptimum(config).profit;
 
+  // NegotiationOutcome rows only exist for human-seated participants (see
+  // tryAdvanceStage), so a bot-involving dyad has no stored per-role profit
+  // to read back. settleDyad is pure and cheap, and the dyad already has
+  // every input it needs (agreedPrice/Quantities, procurementSchedule) —
+  // recomputing here gets the retailer/wholesaler split for every dyad
+  // uniformly, bot or human, the same way the settlement stage itself did.
+  const dyadProfitBars = session.dyads.map((d) => {
+    const settlement = settleDyad(
+      d.status === "AGREED" ? "AGREED" : "NO_DEAL",
+      d.agreedPrice,
+      asNumberArray(d.agreedQuantities),
+      asNumberArray(d.procurementSchedule),
+      config,
+    );
+    return {
+      label: `#${d.dyadNumber}`,
+      retailerProfit: settlement.retailer.profit,
+      wholesalerProfit: settlement.wholesaler.profit,
+    };
+  });
+
   return (
     <div className="mt-8">
       <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Session complete</h2>
@@ -878,14 +940,37 @@ async function CompletedView({
 
       <div className="mt-6">
         <p className="mb-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">
-          Chain profit by dyad, vs. the centralized optimum
+          Profit by dyad — retailer vs. wholesaler, vs. the centralized optimum
         </p>
-        <BarChart
-          bars={session.dyads.map((d) => ({
-            label: `#${d.dyadNumber}`,
-            value: resultByDyad.get(d.id)?.chainProfit ?? 0,
-          }))}
-        />
+        <ProfitAllocationChart maxLabel="Max" maxValue={centralizedProfit} dyads={dyadProfitBars} />
+      </div>
+
+      <div className="mt-6">
+        <p className="mb-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">
+          Negotiated price by dyad
+        </p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-500">
+              <th className="py-2 font-medium">Dyad</th>
+              <th className="py-2 font-medium">Retailer ↔ Wholesaler</th>
+              <th className="py-2 text-right font-medium">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {session.dyads.map((d) => (
+              <tr key={d.id} className="border-b border-zinc-100 dark:border-zinc-800">
+                <td className="py-2 text-zinc-700 dark:text-zinc-300">#{d.dyadNumber}</td>
+                <td className="py-2 text-zinc-700 dark:text-zinc-300">
+                  {firmLabel(d, "RETAILER")} ↔ {firmLabel(d, "WHOLESALER")}
+                </td>
+                <td className="py-2 text-right text-zinc-900 dark:text-zinc-50">
+                  {d.agreedPrice != null ? `$${d.agreedPrice.toFixed(2)}/unit` : "no contract"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <h3 className="mt-8 font-semibold text-zinc-900 dark:text-zinc-50">Best retailers</h3>
@@ -925,6 +1010,8 @@ function Leaderboard({
     dealt: boolean;
     profit: number;
     isBot: boolean;
+    unitsSold: number;
+    unmetDemand: number;
     participant: { user: { name: string | null; email: string } } | null;
   }>;
 }) {
@@ -933,17 +1020,41 @@ function Leaderboard({
   }
   return (
     <table className="mt-3 w-full text-sm">
+      <thead>
+        <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-500">
+          <th className="py-2 font-medium">Participant</th>
+          <th className="py-2 text-right font-medium">Profit</th>
+          <th className="py-2 text-right font-medium">Demand met</th>
+        </tr>
+      </thead>
       <tbody>
-        {rows.map((row) => (
-          <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-800">
-            <td className="py-2 text-zinc-700 dark:text-zinc-300">
-              {row.participant ? row.participant.user.name ?? row.participant.user.email : "Bot"}
-            </td>
-            <td className="py-2 text-right text-zinc-900 dark:text-zinc-50">
-              ${Math.round(row.profit).toLocaleString()}
-            </td>
-          </tr>
-        ))}
+        {rows.map((row) => {
+          // Ranked by profit, same as before — this column doesn't change the
+          // ranking, it just makes visible that profit and demand-matching
+          // aren't the same thing, so a high-profit row that skimped on
+          // demand still shows the tradeoff plainly rather than hiding it.
+          const faced = row.unitsSold + row.unmetDemand;
+          const demandMetPct = faced > 0 ? Math.round((row.unitsSold / faced) * 100) : null;
+          return (
+            <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-800">
+              <td className="py-2 text-zinc-700 dark:text-zinc-300">
+                {row.participant ? row.participant.user.name ?? row.participant.user.email : "Bot"}
+              </td>
+              <td className="py-2 text-right text-zinc-900 dark:text-zinc-50">
+                ${Math.round(row.profit).toLocaleString()}
+              </td>
+              <td
+                className={`py-2 text-right ${
+                  demandMetPct != null && demandMetPct < 100
+                    ? "font-medium text-amber-600 dark:text-amber-400"
+                    : "text-zinc-900 dark:text-zinc-50"
+                }`}
+              >
+                {demandMetPct != null ? `${demandMetPct}%` : "—"}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
