@@ -13,7 +13,7 @@
  *   invisible on the page and obvious the moment they actually ran.
  *
  * WHAT IT DOES
- *   Six numbered checks against
+ *   Eight numbered checks against
  *   src/app/games/[slug]/sessions/[sessionId]/negotiation-actions.ts:
  *     1. A 1-participant session plays through RFQ -> NEGOTIATION ->
  *        SETTLEMENT -> COMPLETED, and the recorded profit matches an
@@ -38,6 +38,11 @@
  *        an ACCEPT response — this is the one path that actually posts the
  *        same price/qty-N/requestedPrice field names the RFQ/Proposal/
  *        Revise estimator components rely on.
+ *     8. refuseSettlement: either party's last-chance walkaway during
+ *        SETTLEMENT flips an AGREED dyad to NO_DEAL, the session still
+ *        completes with a zero-profit outcome for both sides (matching a
+ *        genuine unfinished-negotiation NO_DEAL), and a second refusal on
+ *        the same dyad is rejected.
  *
  * HOW
  *   The action file is "use server" and imports next/cache and
@@ -552,6 +557,82 @@ async function check7() {
   check("7e. the session advances to round 2 once the only dyad has closed round 1", sessionAfter.currentRound === 2);
 }
 
+// --- 8. refuseSettlement: last-chance walkaway during SETTLEMENT ----------
+
+async function check8() {
+  const instructor = await trackedProfile("t8-instructor", "INSTRUCTOR");
+  const studentA = await trackedProfile("t8-studentA", "STUDENT");
+  const studentB = await trackedProfile("t8-studentB", "STUDENT");
+  const session = await trackedSession({ instructorId: instructor.id });
+  const participantA = await prisma.negotiationParticipant.create({
+    data: { sessionId: session.id, userId: studentA.id },
+  });
+  const participantB = await prisma.negotiationParticipant.create({
+    data: { sessionId: session.id, userId: studentB.id },
+  });
+  await asUser(instructor, () => actions.startSession("negotiation-game", session.id));
+
+  const dyad = (
+    await prisma.negotiationSession.findUniqueOrThrow({ where: { id: session.id }, include: { dyads: true } })
+  ).dyads[0];
+  const profileByParticipantId = new Map([
+    [participantA.id, studentA],
+    [participantB.id, studentB],
+  ]);
+  const retailerProfile = profileByParticipantId.get(dyad.retailerParticipantId);
+  const wholesalerProfile = profileByParticipantId.get(dyad.wholesalerParticipantId);
+  if (!retailerProfile || !wholesalerProfile) {
+    check("8. (setup) both seats in the 2-human dyad are identifiable", false);
+    return;
+  }
+
+  const { DEFAULT_NEGOTIATION_CONFIG } = await scratchImport("negotiation.ts");
+  const rfqForm = new FormData();
+  DEFAULT_NEGOTIATION_CONFIG.monthlyDemand.forEach((v, i) => rfqForm.set(`qty-${i}`, String(v)));
+  await asUser(retailerProfile, () => actions.submitRfq("negotiation-game", session.id, rfqForm));
+
+  const proposalForm = new FormData();
+  proposalForm.set("price", "45");
+  DEFAULT_NEGOTIATION_CONFIG.monthlyDemand.forEach((v, i) => proposalForm.set(`qty-${i}`, String(v)));
+  await asUser(wholesalerProfile, () => actions.submitProposal("negotiation-game", session.id, proposalForm));
+
+  const acceptForm = new FormData();
+  acceptForm.set("kind", "ACCEPT");
+  await asUser(retailerProfile, () => actions.submitResponse("negotiation-game", session.id, acceptForm));
+
+  const agreedDyad = await prisma.negotiationDyad.findUniqueOrThrow({ where: { id: dyad.id } });
+  if (agreedDyad.status !== "AGREED") {
+    check("8a. (setup) the dyad reached AGREED before settlement", false, `status was ${agreedDyad.status}`);
+    return;
+  }
+
+  // Refuse as the wholesaler, even though nothing requires a procurement
+  // schedule to have been submitted first — the window is open through all
+  // of settlement.
+  await asUser(wholesalerProfile, () => actions.refuseSettlement("negotiation-game", session.id));
+
+  const refusedDyad = await prisma.negotiationDyad.findUniqueOrThrow({ where: { id: dyad.id } });
+  check("8b. refuseSettlement flips the dyad from AGREED to NO_DEAL", refusedDyad.status === "NO_DEAL");
+
+  const sessionAfter = await prisma.negotiationSession.findUniqueOrThrow({ where: { id: session.id } });
+  check(
+    "8c. the session still completes — the refused dyad just drops out of the settlement wait",
+    sessionAfter.status === "COMPLETED",
+  );
+
+  const outcomes = await prisma.negotiationOutcome.findMany({ where: { dyadId: dyad.id } });
+  const bothZeroProfit = outcomes.length === 2 && outcomes.every((o) => o.profit === 0 && !o.dealt);
+  check(
+    "8d. the outcome rows show zero profit for both sides, same as an unfinished-negotiation NO_DEAL",
+    bothZeroProfit,
+    `${outcomes.length} outcome row(s), profits: ${outcomes.map((o) => o.profit).join(", ")}`,
+  );
+
+  await checkThrows("8e. a second refuseSettlement on the same dyad is rejected", () =>
+    asUser(retailerProfile, () => actions.refuseSettlement("negotiation-game", session.id)),
+  );
+}
+
 // --- run everything, then clean up no matter what -------------------------
 
 try {
@@ -562,6 +643,7 @@ try {
   await check5();
   await check6();
   await check7();
+  await check8();
 } catch (err) {
   check("(unexpected) a check threw instead of failing cleanly", false, err instanceof Error ? err.stack : String(err));
 } finally {

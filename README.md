@@ -93,8 +93,10 @@ It plays a full session through to settlement and cross-checks the recorded
 profit against an independent recomputation from the engine, confirms
 `kickToBot` rejects a dyad from another session and a settled dyad, races two
 concurrent `startSession`/`claimBotSeat` calls to confirm they don't
-double-create or double-seat, and checks an absurd `roundMinutes` value
-doesn't wedge a session. Every row it creates is deleted afterward regardless
+double-create or double-seat, checks an absurd `roundMinutes` value doesn't
+wedge a session, and confirms a settlement-stage `refuseSettlement` call
+flips a dyad to a zero-profit `NO_DEAL` without blocking the rest of the
+session from completing. Every row it creates is deleted afterward regardless
 of outcome. Needs `DIRECT_URL` or `DATABASE_URL` in `.env` and the
 `negotiation-game` `Game` row seeded (`node prisma/seed.mjs`); exits non-zero
 if anything fails.

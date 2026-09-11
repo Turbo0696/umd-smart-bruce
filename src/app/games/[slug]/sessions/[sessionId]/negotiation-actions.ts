@@ -286,6 +286,44 @@ export async function submitProcurement(gameSlug: string, sessionId: string, for
   revalidatePath(sessionPath(gameSlug, sessionId));
 }
 
+// Either party's last chance to walk away before settlement finalizes —
+// even after the wholesaler has submitted a procurement schedule. Flipping
+// status to NO_DEAL is enough on its own: settleDyad already treats any
+// non-AGREED status as a clean zero-profit disagreement point and ignores
+// procurementSchedule entirely once status isn't AGREED, and tryAdvanceStage
+// only waits on dyads still filtered as AGREED — a refused dyad just drops
+// out of that filter on the next read.
+export async function refuseSettlement(gameSlug: string, sessionId: string) {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error("You must be logged in.");
+
+  const session = await prisma.negotiationSession.findUnique({
+    where: { id: sessionId },
+    include: { participants: true, dyads: true },
+  });
+  if (!session) throw new Error("Session not found.");
+  if (session.status !== "ACTIVE" || session.stage !== "SETTLEMENT") {
+    throw new Error("This session is not in settlement right now.");
+  }
+
+  const participant = session.participants.find((p) => p.userId === profile.id);
+  if (!participant) throw new Error("You are not part of this session.");
+  const dyad = session.dyads.find(
+    (d) => d.retailerParticipantId === participant.id || d.wholesalerParticipantId === participant.id,
+  );
+  if (!dyad) throw new Error("You are not seated in this session.");
+  if (dyad.status !== "AGREED") throw new Error("There is no agreed contract to refuse.");
+
+  const updated = await prisma.negotiationDyad.updateMany({
+    where: { id: dyad.id, sessionId, status: "AGREED" },
+    data: { status: "NO_DEAL" },
+  });
+  if (updated.count !== 1) throw new Error("That contract can no longer be refused.");
+
+  await drive(sessionId, {});
+  revalidatePath(sessionPath(gameSlug, sessionId));
+}
+
 function procurementCoversDeliveries(procurement: number[], deliveries: number[]): boolean {
   let procCum = 0;
   let delivCum = 0;
