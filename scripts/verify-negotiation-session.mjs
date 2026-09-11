@@ -31,6 +31,13 @@
  *     6. After one retailer submits an RFQ in a 2-dyad session, that dyad's
  *        rfqQuantities is set while its status is still AWAITING_RFQ — the
  *        state the RFQ-form gating fix keys off.
+ *     7. A human wholesaler's submitProposal and a human retailer's REVISE
+ *        response (via submitResponse) are both recorded correctly, and a
+ *        REVISE leaves the dyad NEGOTIATING and advances the round rather
+ *        than ending it. Checks 1-6 only ever exercise a bot's proposal or
+ *        an ACCEPT response — this is the one path that actually posts the
+ *        same price/qty-N/requestedPrice field names the RFQ/Proposal/
+ *        Revise estimator components rely on.
  *
  * HOW
  *   The action file is "use server" and imports next/cache and
@@ -474,6 +481,77 @@ async function check6() {
   }
 }
 
+// --- 7. a HUMAN wholesaler's submitProposal, and a REVISE response --------
+//
+// Checks 1-6 never exercise submitProposal directly (the only proposal in
+// check1 comes from a bot, via runBotsFor) or submitResponse with
+// kind=REVISE — exactly the two paths the RFQ/ProposalForm/ResponseForm UI
+// rework (price, qty-N, requestedPrice field names) touched most recently.
+
+async function check7() {
+  const instructor = await trackedProfile("t7-instructor", "INSTRUCTOR");
+  const studentA = await trackedProfile("t7-studentA", "STUDENT");
+  const studentB = await trackedProfile("t7-studentB", "STUDENT");
+  const session = await trackedSession({ instructorId: instructor.id });
+  const participantA = await prisma.negotiationParticipant.create({
+    data: { sessionId: session.id, userId: studentA.id },
+  });
+  const participantB = await prisma.negotiationParticipant.create({
+    data: { sessionId: session.id, userId: studentB.id },
+  });
+  await asUser(instructor, () => actions.startSession("negotiation-game", session.id));
+
+  const dyad = (
+    await prisma.negotiationSession.findUniqueOrThrow({ where: { id: session.id }, include: { dyads: true } })
+  ).dyads[0];
+  const profileByParticipantId = new Map([
+    [participantA.id, studentA],
+    [participantB.id, studentB],
+  ]);
+  const retailerProfile = profileByParticipantId.get(dyad.retailerParticipantId);
+  const wholesalerProfile = profileByParticipantId.get(dyad.wholesalerParticipantId);
+  if (!retailerProfile || !wholesalerProfile) {
+    check("7. (setup) both seats in the 2-human dyad are identifiable", false);
+    return;
+  }
+
+  const { DEFAULT_NEGOTIATION_CONFIG } = await scratchImport("negotiation.ts");
+  const rfqForm = new FormData();
+  DEFAULT_NEGOTIATION_CONFIG.monthlyDemand.forEach((v, i) => rfqForm.set(`qty-${i}`, String(v)));
+  await asUser(retailerProfile, () => actions.submitRfq("negotiation-game", session.id, rfqForm));
+
+  // Both seats are human (no bot), so round 1 now sits open waiting on the
+  // wholesaler — nothing auto-fills it the way check1's bot seat did.
+  const proposalForm = new FormData();
+  proposalForm.set("price", "45");
+  const consolidated = [DEFAULT_NEGOTIATION_CONFIG.monthlyDemand.reduce((a, b) => a + b, 0), 0, 0, 0];
+  consolidated.forEach((v, i) => proposalForm.set(`qty-${i}`, String(v)));
+  await asUser(wholesalerProfile, () => actions.submitProposal("negotiation-game", session.id, proposalForm));
+
+  let round = await prisma.negotiationRound.findUniqueOrThrow({
+    where: { dyadId_round: { dyadId: dyad.id, round: 1 } },
+  });
+  check("7a. submitProposal records the wholesaler's price and schedule", round.proposalPrice === 45);
+  check("7b. ...and it's flagged as human, not bot", round.proposalByBot === false);
+
+  const reviseForm = new FormData();
+  reviseForm.set("kind", "REVISE");
+  reviseForm.set("requestedPrice", "50");
+  DEFAULT_NEGOTIATION_CONFIG.monthlyDemand.forEach((v, i) => reviseForm.set(`qty-${i}`, String(v)));
+  await asUser(retailerProfile, () => actions.submitResponse("negotiation-game", session.id, reviseForm));
+
+  round = await prisma.negotiationRound.findUniqueOrThrow({
+    where: { dyadId_round: { dyadId: dyad.id, round: 1 } },
+  });
+  check("7c. submitResponse records a REVISE with the retailer's counter-price", round.requestedPrice === 50);
+
+  const dyadAfter = await prisma.negotiationDyad.findUniqueOrThrow({ where: { id: dyad.id } });
+  check("7d. REVISE leaves the dyad NEGOTIATING rather than ending it", dyadAfter.status === "NEGOTIATING");
+
+  const sessionAfter = await prisma.negotiationSession.findUniqueOrThrow({ where: { id: session.id } });
+  check("7e. the session advances to round 2 once the only dyad has closed round 1", sessionAfter.currentRound === 2);
+}
+
 // --- run everything, then clean up no matter what -------------------------
 
 try {
@@ -483,6 +561,7 @@ try {
   await check4();
   await check5();
   await check6();
+  await check7();
 } catch (err) {
   check("(unexpected) a check threw instead of failing cleanly", false, err instanceof Error ? err.stack : String(err));
 } finally {

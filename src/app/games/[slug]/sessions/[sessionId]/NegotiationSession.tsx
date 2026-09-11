@@ -3,7 +3,7 @@ import type { NegotiationRole } from "@prisma/client";
 import { getCurrentProfile } from "@/lib/auth";
 import { BarChart } from "@/components/BarChart";
 import { CountdownTimer } from "@/components/CountdownTimer";
-import { centralizedOptimum, type NegotiationConfig } from "@/lib/negotiation";
+import { centralizedOptimum, retailerSettlement, type NegotiationConfig } from "@/lib/negotiation";
 import { configFromSession } from "@/lib/negotiationGames";
 import { PollingRefresher } from "@/components/PollingRefresher";
 import { prisma } from "@/lib/prisma";
@@ -14,9 +14,10 @@ import {
   kickToBot,
   startSession,
   submitProcurement,
-  submitProposal,
   submitResponse,
 } from "./negotiation-actions";
+import { ProposalEstimator } from "./ProposalEstimator";
+import { ReviseEstimator } from "./ReviseEstimator";
 import { RfqEstimator } from "./RfqEstimator";
 
 export async function NegotiationSession({
@@ -390,7 +391,7 @@ async function DyadPanel({
       {dyad.status === "AWAITING_RFQ" && viewerRole === "RETAILER" && (
         dyad.rfqQuantities == null ? (
           <>
-            <RfqReferenceInfo config={config} />
+            <NegotiationReferenceInfo config={config} viewerRole="RETAILER" />
             <RfqEstimator slug={slug} sessionId={sessionId} config={config} />
           </>
         ) : (
@@ -424,39 +425,63 @@ async function DyadPanel({
   );
 }
 
-// Static, server-rendered — the numbers a retailer already knows (common
-// knowledge, per the negotiation design: retail price, salvage price, and
-// their own demand and logistics costs), shown together so they don't have
-// to hold them all in their head while trying the estimator below.
-function RfqReferenceInfo({ config }: { config: NegotiationConfig }) {
+// Static, server-rendered — the numbers a viewer already knows, shown
+// together so they don't have to hold them all in their head while working
+// out an offer. Role-aware: a retailer knows their own demand and logistics
+// costs (never the wholesaler's manufacturer cost); a wholesaler knows their
+// own cost and logistics, plus whatever the retailer's RFQ reveals — the
+// RFQ's requested quantities always (that's the request being responded
+// to), and the retailer's actual monthly demand only if they chose to share
+// it (dyad.demandShared). Used at the RFQ stage and in every negotiation
+// round after it, not just the one-time RFQ — the same numbers matter for
+// deciding how to respond to an offer as they did for the initial request.
+function NegotiationReferenceInfo({
+  config,
+  viewerRole,
+  rfqQuantities,
+  demandShared,
+}: {
+  config: NegotiationConfig;
+  viewerRole: NegotiationRole;
+  rfqQuantities?: number[] | null;
+  demandShared?: boolean;
+}) {
+  const facts: { label: string; value: string }[] =
+    viewerRole === "RETAILER"
+      ? [
+          ...config.horizonLabels.map((label, i) => ({
+            label: `${label} demand`,
+            value: `${config.monthlyDemand[i]} units`,
+          })),
+          { label: "Retail price", value: `$${config.retailPrice}/unit` },
+          { label: "Salvage price", value: `$${config.salvagePrice}/unit` },
+          { label: "Your order cost", value: `$${config.retailerOrderCost}/order` },
+          { label: "Your holding cost", value: `$${config.retailerHoldingCost}/unit/month` },
+        ]
+      : [
+          ...(rfqQuantities
+            ? [{ label: "Retailer's RFQ", value: `${rfqQuantities.join(", ")} units` }]
+            : []),
+          ...(demandShared
+            ? [{ label: "Retailer's actual demand", value: `${config.monthlyDemand.join(", ")} units` }]
+            : []),
+          { label: "Retail price", value: `$${config.retailPrice}/unit` },
+          { label: "Salvage price", value: `$${config.salvagePrice}/unit` },
+          { label: "Your manufacturer cost", value: `$${config.manufacturerCost}/unit` },
+          { label: "Your order cost", value: `$${config.wholesalerOrderCost}/order` },
+          { label: "Your holding cost", value: `$${config.wholesalerHoldingCost}/unit/month` },
+        ];
+
   return (
     <div className="mt-3 rounded-md border border-zinc-100 p-3 text-xs dark:border-zinc-800">
       <p className="font-medium text-zinc-700 dark:text-zinc-300">Your information</p>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {config.horizonLabels.map((label, i) => (
-          <div key={label}>
-            <p className="text-zinc-500 dark:text-zinc-500">{label} demand</p>
-            <p className="text-zinc-900 dark:text-zinc-50">{config.monthlyDemand[i]} units</p>
+        {facts.map((f) => (
+          <div key={f.label}>
+            <p className="text-zinc-500 dark:text-zinc-500">{f.label}</p>
+            <p className="text-zinc-900 dark:text-zinc-50">{f.value}</p>
           </div>
         ))}
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div>
-          <p className="text-zinc-500 dark:text-zinc-500">Retail price</p>
-          <p className="text-zinc-900 dark:text-zinc-50">${config.retailPrice}/unit</p>
-        </div>
-        <div>
-          <p className="text-zinc-500 dark:text-zinc-500">Salvage price</p>
-          <p className="text-zinc-900 dark:text-zinc-50">${config.salvagePrice}/unit</p>
-        </div>
-        <div>
-          <p className="text-zinc-500 dark:text-zinc-500">Your order cost</p>
-          <p className="text-zinc-900 dark:text-zinc-50">${config.retailerOrderCost}/order</p>
-        </div>
-        <div>
-          <p className="text-zinc-500 dark:text-zinc-500">Your holding cost</p>
-          <p className="text-zinc-900 dark:text-zinc-50">${config.retailerHoldingCost}/unit/month</p>
-        </div>
       </div>
     </div>
   );
@@ -491,6 +516,13 @@ async function NegotiationRoundPanel({
 
   return (
     <div className="mt-3 flex flex-col gap-4">
+      <NegotiationReferenceInfo
+        config={config}
+        viewerRole={viewerRole}
+        rfqQuantities={asNumberArray(dyad.rfqQuantities)}
+        demandShared={dyad.demandShared}
+      />
+
       {priorRounds.length > 0 && <Transcript rounds={priorRounds} config={config} />}
 
       {!currentRound && (
@@ -500,7 +532,7 @@ async function NegotiationRoundPanel({
       )}
 
       {currentRound && viewerRole === "WHOLESALER" && currentRound.proposalPrice == null && (
-        <ProposalForm
+        <ProposalEstimator
           slug={slug}
           sessionId={sessionId}
           config={config}
@@ -541,67 +573,6 @@ async function NegotiationRoundPanel({
   );
 }
 
-function ProposalForm({
-  slug,
-  sessionId,
-  config,
-  rfqQuantities,
-  lastRequestedPrice,
-  lastRequestedQuantities,
-}: {
-  slug: string;
-  sessionId: string;
-  config: NegotiationConfig;
-  rfqQuantities: number[] | null;
-  lastRequestedPrice: number | null;
-  lastRequestedQuantities: number[] | null;
-}) {
-  const action = submitProposal.bind(null, slug, sessionId);
-  return (
-    <form action={action} className="flex flex-col gap-3 rounded-md border border-zinc-100 p-3 dark:border-zinc-800">
-      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-        Propose a price and delivery schedule
-      </p>
-      {rfqQuantities && (
-        <p className="text-xs text-zinc-500 dark:text-zinc-500">
-          Your retailer&apos;s request: {rfqQuantities.join(", ")} units
-        </p>
-      )}
-      {lastRequestedPrice != null && (
-        <p className="text-xs text-zinc-500 dark:text-zinc-500">
-          Last round they asked for ${lastRequestedPrice.toFixed(2)}/unit
-          {lastRequestedQuantities ? ` and ${lastRequestedQuantities.join(", ")} units` : ""}.
-        </p>
-      )}
-      <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
-        Unit price ($, up to ${config.retailPrice})
-        <input
-          type="number"
-          name="price"
-          min={0}
-          max={config.retailPrice}
-          step="0.01"
-          defaultValue={lastRequestedPrice ?? undefined}
-          required
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-        />
-      </label>
-      <QuantityFields
-        namePrefix="qty-"
-        horizonLabels={config.horizonLabels}
-        defaultValues={lastRequestedQuantities ?? rfqQuantities ?? config.monthlyDemand}
-      />
-      {config.allowNotes && <NoteField maxLength={config.noteMaxLength} />}
-      <button
-        type="submit"
-        className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
-        Send proposal
-      </button>
-    </form>
-  );
-}
-
 function ResponseForm({
   slug,
   sessionId,
@@ -617,12 +588,25 @@ function ResponseForm({
 }) {
   const action = submitResponse.bind(null, slug, sessionId);
   const quantities = asNumberArray(round.proposalQuantities) ?? [];
+  // The offer on the table is real, not hypothetical, so accepting it as-is
+  // is a plain server-side computation — nothing to experiment with, unlike
+  // the revise path below.
+  const acceptEstimate =
+    round.proposalPrice != null ? retailerSettlement(round.proposalPrice, quantities, config) : null;
 
   return (
     <form action={action} className="flex flex-col gap-3 rounded-md border border-zinc-100 p-3 dark:border-zinc-800">
       <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
         Their offer: ${round.proposalPrice?.toFixed(2)}/unit, {quantities.join(", ")} units
       </p>
+      {acceptEstimate && (
+        <p className="text-xs text-zinc-500 dark:text-zinc-500">
+          If you accept this exactly as offered, your estimated profit: $
+          {Math.round(acceptEstimate.profit).toLocaleString()}
+          {acceptEstimate.unmetDemand > 0 &&
+            ` (${acceptEstimate.unmetDemand} units of demand would go unmet)`}
+        </p>
+      )}
       {round.proposalNote && (
         <p className="rounded bg-zinc-50 p-2 text-xs text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-400">
           &quot;{round.proposalNote}&quot;
@@ -645,25 +629,11 @@ function ResponseForm({
           <p className="text-xs text-zinc-500 dark:text-zinc-500">
             If you request a revision, ask for:
           </p>
-          <label className="mt-2 flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
-            Unit price ($)
-            <input
-              type="number"
-              name="requestedPrice"
-              min={0}
-              max={config.retailPrice}
-              step="0.01"
-              defaultValue={round.proposalPrice ?? undefined}
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-            />
-          </label>
-          <div className="mt-2">
-            <QuantityFields
-              namePrefix="qty-"
-              horizonLabels={config.horizonLabels}
-              defaultValues={quantities.length ? quantities : config.monthlyDemand}
-            />
-          </div>
+          <ReviseEstimator
+            config={config}
+            initialPrice={round.proposalPrice}
+            initialQuantities={quantities.length ? quantities : config.monthlyDemand}
+          />
         </div>
       )}
 
