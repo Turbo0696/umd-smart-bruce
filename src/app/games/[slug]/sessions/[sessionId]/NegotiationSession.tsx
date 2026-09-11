@@ -16,8 +16,8 @@ import {
   submitProcurement,
   submitProposal,
   submitResponse,
-  submitRfq,
 } from "./negotiation-actions";
+import { RfqEstimator } from "./RfqEstimator";
 
 export async function NegotiationSession({
   slug,
@@ -389,7 +389,10 @@ async function DyadPanel({
 
       {dyad.status === "AWAITING_RFQ" && viewerRole === "RETAILER" && (
         dyad.rfqQuantities == null ? (
-          <RfqForm slug={slug} sessionId={sessionId} config={config} />
+          <>
+            <RfqReferenceInfo config={config} />
+            <RfqEstimator slug={slug} sessionId={sessionId} config={config} />
+          </>
         ) : (
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Request submitted ({(asNumberArray(dyad.rfqQuantities) ?? []).join(", ")} units). Waiting
@@ -421,42 +424,41 @@ async function DyadPanel({
   );
 }
 
-function RfqForm({
-  slug,
-  sessionId,
-  config,
-}: {
-  slug: string;
-  sessionId: string;
-  config: NegotiationConfig;
-}) {
-  const action = submitRfq.bind(null, slug, sessionId);
+// Static, server-rendered — the numbers a retailer already knows (common
+// knowledge, per the negotiation design: retail price, salvage price, and
+// their own demand and logistics costs), shown together so they don't have
+// to hold them all in their head while trying the estimator below.
+function RfqReferenceInfo({ config }: { config: NegotiationConfig }) {
   return (
-    <form action={action} className="mt-3 flex flex-col gap-3">
-      <p className="text-sm text-zinc-700 dark:text-zinc-300">
-        You know your own demand for the months ahead. Request however you&apos;d
-        like it delivered — it doesn&apos;t have to match your demand exactly,
-        but ordering more often costs more in ordering fees, and holding
-        stock ahead of when you need it costs you in storage.
-      </p>
-      <QuantityFields
-        namePrefix="qty-"
-        horizonLabels={config.horizonLabels}
-        defaultValues={config.monthlyDemand}
-      />
-      {config.allowDemandSharing && (
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <input type="checkbox" name="shareDemand" />
-          Share my actual monthly demand with my wholesaler
-        </label>
-      )}
-      <button
-        type="submit"
-        className="self-start rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
-        Submit RFQ
-      </button>
-    </form>
+    <div className="mt-3 rounded-md border border-zinc-100 p-3 text-xs dark:border-zinc-800">
+      <p className="font-medium text-zinc-700 dark:text-zinc-300">Your information</p>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {config.horizonLabels.map((label, i) => (
+          <div key={label}>
+            <p className="text-zinc-500 dark:text-zinc-500">{label} demand</p>
+            <p className="text-zinc-900 dark:text-zinc-50">{config.monthlyDemand[i]} units</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div>
+          <p className="text-zinc-500 dark:text-zinc-500">Retail price</p>
+          <p className="text-zinc-900 dark:text-zinc-50">${config.retailPrice}/unit</p>
+        </div>
+        <div>
+          <p className="text-zinc-500 dark:text-zinc-500">Salvage price</p>
+          <p className="text-zinc-900 dark:text-zinc-50">${config.salvagePrice}/unit</p>
+        </div>
+        <div>
+          <p className="text-zinc-500 dark:text-zinc-500">Your order cost</p>
+          <p className="text-zinc-900 dark:text-zinc-50">${config.retailerOrderCost}/order</p>
+        </div>
+        <div>
+          <p className="text-zinc-500 dark:text-zinc-500">Your holding cost</p>
+          <p className="text-zinc-900 dark:text-zinc-50">${config.retailerHoldingCost}/unit/month</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
