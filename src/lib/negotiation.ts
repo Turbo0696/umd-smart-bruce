@@ -39,6 +39,7 @@ export type NegotiationConfig = {
   roundMinutes: number | null; // advisory per-round clock; there is no cron/realtime, so this is never enforced automatically — see negotiation-actions.ts
   allowDemandSharing: boolean; // lets the retailer reveal its demand schedule to the wholesaler
   allowNotes: boolean;
+  allowConsolidationHint: boolean; // shows the wholesaler a one-click "try consolidating" shortcut and its cost comparison, rather than requiring them to work it out by hand
   noteMaxLength: number;
   maxMonthlyQty: number; // clamp on any single month's quantity, so a stray input can't blow up optimalProcurement's search
 };
@@ -61,6 +62,7 @@ export const DEFAULT_NEGOTIATION_CONFIG: NegotiationConfig = {
   roundMinutes: null,
   allowDemandSharing: true,
   allowNotes: true,
+  allowConsolidationHint: true,
   noteMaxLength: 500,
   maxMonthlyQty: 20000,
 };

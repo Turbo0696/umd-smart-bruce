@@ -137,6 +137,11 @@ export function NegotiationLanding({
               <input type="checkbox" name="allowNotes" defaultChecked />
               Allow a short written note with each offer
             </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="allowConsolidationHint" defaultChecked />
+              Give wholesalers a one-click &quot;try consolidating&quot;
+              shortcut and a live cost comparison on their proposal form
+            </label>
           </div>
 
           {instructorCourses && instructorCourses.length > 0 && (

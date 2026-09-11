@@ -142,6 +142,7 @@ function parseConfigFromForm(formData: FormData): NegotiationConfig {
     roundMinutes: parseOptionalMinutes(formData.get("roundMinutes")),
     allowDemandSharing: formData.get("allowDemandSharing") !== null,
     allowNotes: formData.get("allowNotes") !== null,
+    allowConsolidationHint: formData.get("allowConsolidationHint") !== null,
     noteMaxLength: DEFAULT_NEGOTIATION_CONFIG.noteMaxLength,
     maxMonthlyQty: DEFAULT_NEGOTIATION_CONFIG.maxMonthlyQty,
   };
