@@ -3,11 +3,7 @@ import type { NegotiationRole } from "@prisma/client";
 import { getCurrentProfile } from "@/lib/auth";
 import { BarChart } from "@/components/BarChart";
 import { CountdownTimer } from "@/components/CountdownTimer";
-import {
-  centralizedOptimum,
-  optimalProcurement,
-  type NegotiationConfig,
-} from "@/lib/negotiation";
+import { centralizedOptimum, type NegotiationConfig } from "@/lib/negotiation";
 import { configFromSession } from "@/lib/negotiationGames";
 import { PollingRefresher } from "@/components/PollingRefresher";
 import { prisma } from "@/lib/prisma";
@@ -58,10 +54,6 @@ export async function NegotiationSession({
     : undefined;
   const canManage =
     !!profile && (profile.id === session.instructorId || profile.role === "ADMIN");
-  // A host who also holds a seat shouldn't get to read their own
-  // counterparty's private numbers through the console — see the "Your
-  // seat" note below for the parallel host/player composition.
-  const showPrivateEconomics = canManage && !viewerParticipant;
 
   const viewerDyad = viewerParticipant
     ? session.dyads.find(
@@ -109,7 +101,6 @@ export async function NegotiationSession({
           viewerDyad={viewerDyad}
           viewerRole={viewerRole}
           canManage={canManage}
-          showPrivateEconomics={showPrivateEconomics}
         />
       )}
 
@@ -255,7 +246,6 @@ function ActiveView({
   viewerDyad,
   viewerRole,
   canManage,
-  showPrivateEconomics,
 }: {
   slug: string;
   sessionId: string;
@@ -266,7 +256,6 @@ function ActiveView({
   viewerDyad: Dyad | undefined;
   viewerRole: NegotiationRole | undefined;
   canManage: boolean;
-  showPrivateEconomics: boolean;
 }) {
   const claimAction = claimBotSeat.bind(null, slug, sessionId);
   const kickAction = kickToBot.bind(null, slug, sessionId);
@@ -295,7 +284,10 @@ function ActiveView({
             `Stage: negotiation — round ${session.currentRound} of ${session.totalRounds}`}
           {session.stage === "SETTLEMENT" && "Stage: settlement"}
         </p>
-        {session.roundDeadlineAt && (
+        {session.roundDeadlineAt && !Number.isNaN(session.roundDeadlineAt.getTime()) && (
+          // The isNaN check guards a row written before roundDeadlineFrom
+          // gained its own bound — toISOString() throws RangeError on an
+          // Invalid Date, which would otherwise 500 this whole page.
           <CountdownTimer deadline={session.roundDeadlineAt.toISOString()} label={stageLabel} />
         )}
       </div>
@@ -349,8 +341,6 @@ function ActiveView({
       {canManage && (
         <HostConsole
           session={session}
-          config={config}
-          showPrivateEconomics={showPrivateEconomics}
           kickAction={kickAction}
           forceAction={forceAction}
         />
@@ -398,7 +388,14 @@ async function DyadPanel({
       )}
 
       {dyad.status === "AWAITING_RFQ" && viewerRole === "RETAILER" && (
-        <RfqForm slug={slug} sessionId={sessionId} config={config} />
+        dyad.rfqQuantities == null ? (
+          <RfqForm slug={slug} sessionId={sessionId} config={config} />
+        ) : (
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Request submitted ({(asNumberArray(dyad.rfqQuantities) ?? []).join(", ")} units). Waiting
+            for the other retailers to submit theirs.
+          </p>
+        )
       )}
       {dyad.status === "AWAITING_RFQ" && viewerRole === "WHOLESALER" && (
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -523,7 +520,7 @@ async function NegotiationRoundPanel({
         </p>
       )}
 
-      {currentRound && viewerRole === "RETAILER" && currentRound.proposalPrice != null && (
+      {currentRound && viewerRole === "RETAILER" && currentRound.proposalPrice != null && currentRound.responseKind == null && (
         <ResponseForm
           slug={slug}
           sessionId={sessionId}
@@ -531,6 +528,12 @@ async function NegotiationRoundPanel({
           round={currentRound}
           isFinalRound={isFinalRound}
         />
+      )}
+
+      {currentRound && viewerRole === "RETAILER" && currentRound.proposalPrice != null && currentRound.responseKind != null && (
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Response sent for round {session.currentRound}. Waiting for the other dyads to finish this round.
+        </p>
       )}
     </div>
   );
@@ -789,37 +792,18 @@ function Transcript({
 
 function HostConsole({
   session,
-  config,
-  showPrivateEconomics,
   kickAction,
   forceAction,
 }: {
   session: SessionWithDyads;
-  config: NegotiationConfig;
-  showPrivateEconomics: boolean;
   kickAction: (dyadId: string, role: NegotiationRole) => Promise<void>;
   forceAction: () => Promise<void>;
 }) {
-  const central = showPrivateEconomics ? centralizedOptimum(config) : null;
-
   return (
     <div className="mt-8 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
         Instructor controls
       </p>
-      {!showPrivateEconomics && (
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-          You&apos;re also seated in this session, so cost details are
-          hidden here to keep your own negotiation fair.
-        </p>
-      )}
-      {central && (
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-          Manufacturer price ${config.manufacturerCost}/unit · centralized
-          (vertically-integrated) optimum: ${Math.round(central.profit).toLocaleString()} chain
-          profit
-        </p>
-      )}
 
       <div className="mt-3 flex flex-col gap-2">
         {session.dyads.map((d) => (
@@ -852,9 +836,6 @@ function HostConsole({
                 )}
               </div>
             )}
-            {showPrivateEconomics && d.status === "AGREED" && d.procurementSchedule != null && (
-              <ProcurementComparison dyad={d} config={config} />
-            )}
           </div>
         ))}
       </div>
@@ -876,20 +857,6 @@ function HostConsole({
   );
 }
 
-function ProcurementComparison({ dyad, config }: { dyad: Dyad; config: NegotiationConfig }) {
-  const agreed = asNumberArray(dyad.agreedQuantities) ?? [];
-  const submitted = asNumberArray(dyad.procurementSchedule) ?? [];
-  const optimal = optimalProcurement(agreed, config);
-  const submittedOrders = submitted.filter((q) => q > 0).length;
-
-  return (
-    <span className="text-zinc-500 dark:text-zinc-500">
-      Procurement: {submittedOrders} order{submittedOrders === 1 ? "" : "s"} submitted vs. optimal $
-      {optimal.cost.toLocaleString()} logistics cost ({optimal.orders} order
-      {optimal.orders === 1 ? "" : "s"})
-    </span>
-  );
-}
 
 async function CompletedView({
   session,

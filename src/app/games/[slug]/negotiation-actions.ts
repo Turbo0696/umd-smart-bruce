@@ -45,12 +45,19 @@ export async function createNegotiationSession(gameSlug: string, formData: FormD
       });
       break;
     } catch (err) {
-      // Unique constraint collision on joinCode — extremely unlikely, just retry.
-      if (attempt === 4) throw err;
+      // Only retry the actual thing this loop exists for — a unique
+      // constraint collision on joinCode (extremely unlikely). Any other
+      // error (e.g. a stale/invalid courseId hitting the foreign key) would
+      // just fail the same way 5 times in a row; surface it immediately.
+      if (!isP2002(err) || attempt === 4) throw err;
     }
   }
 
   redirect(`/games/${gameSlug}/sessions/${session!.id}`);
+}
+
+function isP2002(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "P2002";
 }
 
 export async function joinNegotiationByCode(formData: FormData) {
@@ -132,7 +139,7 @@ function parseConfigFromForm(formData: FormData): NegotiationConfig {
       0,
     ),
     totalRounds: clampInt(formData.get("totalRounds"), DEFAULT_NEGOTIATION_CONFIG.totalRounds, 1, 10),
-    roundMinutes: parseOptionalPositiveInt(formData.get("roundMinutes")),
+    roundMinutes: parseOptionalMinutes(formData.get("roundMinutes")),
     allowDemandSharing: formData.get("allowDemandSharing") !== null,
     allowNotes: formData.get("allowNotes") !== null,
     noteMaxLength: DEFAULT_NEGOTIATION_CONFIG.noteMaxLength,
@@ -168,9 +175,16 @@ function clampNum(value: FormDataEntryValue | null, fallback: number, min: numbe
   return Math.max(min, n);
 }
 
-function parseOptionalPositiveInt(value: FormDataEntryValue | null): number | null {
+// Blank stays "no limit" (null). A present value is clamped to 1..1440
+// (24h) — unlike totalRounds' clampInt, a bare finite-and-positive check
+// let an absurd value (e.g. a pasted 1e15) through, which overflows
+// ECMAScript's valid Date range downstream in roundDeadlineFrom and throws
+// on write. See negotiation.ts's roundDeadlineFrom for the second half of
+// this guard.
+function parseOptionalMinutes(value: FormDataEntryValue | null): number | null {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
   const n = Math.round(Number(raw));
-  return Number.isFinite(n) && n > 0 ? n : null;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(n, 1440);
 }

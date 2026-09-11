@@ -500,5 +500,12 @@ export function shuffleSeeded<T>(items: readonly T[], seed: number): T[] {
 // testable by taking `start` as an argument instead of reading Date.now().
 export function roundDeadlineFrom(start: Date, config: NegotiationConfig): Date | null {
   if (config.roundMinutes == null || config.roundMinutes <= 0) return null;
-  return new Date(start.getTime() + config.roundMinutes * 60_000);
+  const ms = start.getTime() + config.roundMinutes * 60_000;
+  // ECMAScript caps a valid time value at ±8.64e15 ms; a `new Date` beyond
+  // that is an Invalid Date, which Prisma rejects when writing it. The
+  // create-session form already clamps roundMinutes to 1440 (24h), but this
+  // stays defensive since all three call sites funnel through here and a
+  // config can also arrive via a session's raw `config` JSON.
+  if (!Number.isFinite(ms) || Math.abs(ms) > 8.64e15) return null;
+  return new Date(ms);
 }

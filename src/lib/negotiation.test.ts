@@ -348,4 +348,19 @@ describe("roundDeadlineFrom — the advisory round clock", () => {
     expect(roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: 0 })).toBeNull();
     expect(roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: -5 })).toBeNull();
   });
+
+  it("is null for an absurd limit rather than an Invalid Date the DB will reject", () => {
+    // The create form clamps roundMinutes to 1440, but this stays defensive
+    // since a session's raw config JSON is another way an out-of-range
+    // value could arrive here — 1e15 minutes overflows ECMAScript's valid
+    // time-value range (±8.64e15 ms) well before it reaches Date.
+    expect(roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: 1e15 })).toBeNull();
+  });
+
+  it("still resolves a large-but-valid limit to a real Date", () => {
+    // 1440 minutes (24h) is the form's own ceiling — comfortably inside the
+    // valid range, so this must NOT be swallowed by the same guard.
+    const deadline = roundDeadlineFrom(start, { ...DEFAULT_NEGOTIATION_CONFIG, roundMinutes: 1440 });
+    expect(deadline).toEqual(new Date("2026-01-02T00:00:00.000Z"));
+  });
 });

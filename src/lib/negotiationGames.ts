@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   DEFAULT_NEGOTIATION_CONFIG,
@@ -65,8 +66,14 @@ export async function addNegotiationParticipant(sessionId: string, userId: strin
 // ... negotiates with a single wholesaler" (paper, p.4). An odd participant
 // count, or any leftover single seat, is filled with a bot counterpart
 // rather than leaving someone without a partner.
-export async function createDyadsForSession(sessionId: string) {
-  const session = await prisma.negotiationSession.findUniqueOrThrow({
+//
+// Takes the caller's transaction client rather than opening its own: this
+// only ever runs as part of starting a session, and the start itself must be
+// atomic with the "is this session still PENDING" check (see startSession in
+// the session actions file) — nesting a second $transaction inside that
+// isn't possible, so the caller's `tx` is threaded straight through.
+export async function createDyadsForSession(sessionId: string, tx: Prisma.TransactionClient) {
+  const session = await tx.negotiationSession.findUniqueOrThrow({
     where: { id: sessionId },
     include: { participants: true },
   });
@@ -91,20 +98,21 @@ export async function createDyadsForSession(sessionId: string) {
     });
   }
 
-  await prisma.$transaction(
-    dyads.map((d) =>
-      prisma.negotiationDyad.create({
-        data: {
-          sessionId,
-          dyadNumber: d.dyadNumber,
-          retailerFirmName: d.retailerFirmName,
-          wholesalerFirmName: d.wholesalerFirmName,
-          retailerParticipantId: d.retailerParticipantId,
-          wholesalerParticipantId: d.wholesalerParticipantId,
-        },
-      }),
-    ),
-  );
+  // A single transaction connection processes queries one at a time anyway,
+  // so this is a plain sequential loop rather than prisma.$transaction([...])
+  // — there's no separate transaction left to open here.
+  for (const d of dyads) {
+    await tx.negotiationDyad.create({
+      data: {
+        sessionId,
+        dyadNumber: d.dyadNumber,
+        retailerFirmName: d.retailerFirmName,
+        wholesalerFirmName: d.wholesalerFirmName,
+        retailerParticipantId: d.retailerParticipantId,
+        wholesalerParticipantId: d.wholesalerParticipantId,
+      },
+    });
+  }
 
   return dyads.length;
 }

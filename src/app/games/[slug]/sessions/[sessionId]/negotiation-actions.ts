@@ -33,6 +33,13 @@ function isP2002(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && err.code === "P2002";
 }
 
+// Postgres write-conflict/deadlock under Serializable isolation surfaces
+// through Prisma as P2034 ("Transaction failed due to a write conflict or a
+// deadlock. Please retry your transaction.").
+function isSerializationFailure(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "P2034";
+}
+
 function asNumberArray(value: unknown): number[] | null {
   return Array.isArray(value) ? (value as number[]) : null;
 }
@@ -68,15 +75,27 @@ export async function startSession(gameSlug: string, sessionId: string) {
     throw new Error("Need at least 1 participant before starting.");
   }
 
-  await createDyadsForSession(sessionId);
   const startedAt = new Date();
-  await prisma.negotiationSession.update({
-    where: { id: sessionId },
-    data: {
-      status: "ACTIVE",
-      startedAt,
-      roundDeadlineAt: roundDeadlineFrom(startedAt, configFromSession(session)),
-    },
+  const config = configFromSession(session);
+
+  // One transaction claims the PENDING->ACTIVE transition AND creates the
+  // dyads. Previously these were separate statements with a fallible write
+  // (an unbounded roundMinutes could throw an Invalid Date into Prisma)
+  // sitting between them — a failure there left the session permanently
+  // PENDING-with-dyads-already-created, unrecoverable because retrying hit
+  // a unique-constraint violation on the dyads that already existed. Now
+  // either the whole start happens or none of it does.
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.negotiationSession.updateMany({
+      where: { id: sessionId, status: "PENDING" }, // atomic claim: only one concurrent caller wins
+      data: {
+        status: "ACTIVE",
+        startedAt,
+        roundDeadlineAt: roundDeadlineFrom(startedAt, config),
+      },
+    });
+    if (claimed.count !== 1) throw new Error("This session has already started.");
+    await createDyadsForSession(sessionId, tx);
   });
 
   await drive(sessionId, {});
@@ -298,25 +317,43 @@ export async function claimBotSeat(
     where: { sessionId_userId: { sessionId, userId: profile.id } },
   });
 
-  const alreadySeated = await prisma.negotiationDyad.findFirst({
-    where: {
-      sessionId,
-      OR: [{ retailerParticipantId: participant.id }, { wholesalerParticipantId: participant.id }],
-    },
-  });
-  if (alreadySeated) throw new Error("You already have a seat in this session.");
-
-  const updated =
-    role === "RETAILER"
-      ? await prisma.negotiationDyad.updateMany({
-          where: { id: dyadId, sessionId, retailerParticipantId: null },
-          data: { retailerParticipantId: participant.id },
-        })
-      : await prisma.negotiationDyad.updateMany({
-          where: { id: dyadId, sessionId, wholesalerParticipantId: null },
-          data: { wholesalerParticipantId: participant.id },
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        // Serializable makes the check-then-claim atomic across BOTH FK
+        // columns at once. A plain unique constraint can't express "this
+        // participant holds no seat anywhere" — a retailer seat in one dyad
+        // and a wholesaler seat in another dyad write two DIFFERENT
+        // columns, so neither column's own unique index would catch a
+        // participant claiming both.
+        const alreadySeated = await tx.negotiationDyad.findFirst({
+          where: {
+            sessionId,
+            OR: [{ retailerParticipantId: participant.id }, { wholesalerParticipantId: participant.id }],
+          },
         });
-  if (updated.count !== 1) throw new Error("That seat was just taken by someone else.");
+        if (alreadySeated) throw new Error("You already have a seat in this session.");
+
+        const updated =
+          role === "RETAILER"
+            ? await tx.negotiationDyad.updateMany({
+                where: { id: dyadId, sessionId, retailerParticipantId: null },
+                data: { retailerParticipantId: participant.id },
+              })
+            : await tx.negotiationDyad.updateMany({
+                where: { id: dyadId, sessionId, wholesalerParticipantId: null },
+                data: { wholesalerParticipantId: participant.id },
+              });
+        if (updated.count !== 1) throw new Error("That seat was just taken by someone else.");
+      },
+      { isolationLevel: "Serializable" },
+    );
+  } catch (err) {
+    if (isSerializationFailure(err) || isP2002(err)) {
+      throw new Error("That seat was just taken — refresh and try again.");
+    }
+    throw err;
+  }
 
   await drive(sessionId, {});
   revalidatePath(sessionPath(gameSlug, sessionId));
@@ -333,10 +370,34 @@ export async function kickToBot(gameSlug: string, sessionId: string, dyadId: str
   const canManage = !!profile && (profile.id === session.instructorId || profile.role === "ADMIN");
   if (!canManage) throw new Error("Only the instructor can do this.");
 
-  if (role === "RETAILER") {
-    await prisma.negotiationDyad.update({ where: { id: dyadId }, data: { retailerParticipantId: null } });
-  } else {
-    await prisma.negotiationDyad.update({ where: { id: dyadId }, data: { wholesalerParticipantId: null } });
+  // Scoped by sessionId (dyadId alone would let a host reach a dyad in a
+  // session they don't run), restricted to non-terminal dyad states (never
+  // touch a settled dyad's history), and guarded on the seat actually being
+  // held right now — the same three properties claimBotSeat already has.
+  const updated =
+    role === "RETAILER"
+      ? await prisma.negotiationDyad.updateMany({
+          where: {
+            id: dyadId,
+            sessionId,
+            status: { in: ["AWAITING_RFQ", "NEGOTIATING"] },
+            retailerParticipantId: { not: null },
+          },
+          data: { retailerParticipantId: null },
+        })
+      : await prisma.negotiationDyad.updateMany({
+          where: {
+            id: dyadId,
+            sessionId,
+            status: { in: ["AWAITING_RFQ", "NEGOTIATING"] },
+            wholesalerParticipantId: { not: null },
+          },
+          data: { wholesalerParticipantId: null },
+        });
+  if (updated.count !== 1) {
+    throw new Error(
+      "That seat can't be replaced now — it may already be a bot, or the negotiation has moved on. Refresh and try again.",
+    );
   }
 
   await drive(sessionId, {});

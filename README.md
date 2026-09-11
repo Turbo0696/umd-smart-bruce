@@ -77,6 +77,28 @@ outcomes, and rolls the whole thing back. `search_path` excludes `public`, so
 your own tables are neither read nor written. Needs `DIRECT_URL` in `.env`;
 exits non-zero if anything fails.
 
+### Rehearsing the Sourcing Negotiation session lifecycle
+
+The seat-management guards, the atomic session-start transaction, the RFQ
+stage-gating, and the `roundMinutes` overflow guard are all either
+DB-resident or JSX-resident — none of it is reachable by `npm test`. So it
+has its own rehearsal harness that exercises the real server actions against
+a live database:
+
+```bash
+node --experimental-strip-types scripts/verify-negotiation-session.mjs
+```
+
+It plays a full session through to settlement and cross-checks the recorded
+profit against an independent recomputation from the engine, confirms
+`kickToBot` rejects a dyad from another session and a settled dyad, races two
+concurrent `startSession`/`claimBotSeat` calls to confirm they don't
+double-create or double-seat, and checks an absurd `roundMinutes` value
+doesn't wedge a session. Every row it creates is deleted afterward regardless
+of outcome. Needs `DIRECT_URL` or `DATABASE_URL` in `.env` and the
+`negotiation-game` `Game` row seeded (`node prisma/seed.mjs`); exits non-zero
+if anything fails.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

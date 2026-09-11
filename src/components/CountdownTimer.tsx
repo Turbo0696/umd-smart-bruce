@@ -25,11 +25,21 @@ export function CountdownTimer({ deadline, label }: { deadline: string; label: s
     return () => clearInterval(id);
   }, []);
 
+  // An unparseable deadline makes target NaN, and NaN <= 0 is false — so
+  // without this check it would fall straight into the "time left" branch
+  // below and render "NaN:NaN" instead of failing visibly.
+  if (!Number.isFinite(target)) {
+    return <p className="text-sm text-zinc-500 dark:text-zinc-500">Time left for {label}: —</p>;
+  }
+
   const remainingMs = target - now;
 
   if (remainingMs <= 0) {
     return (
-      <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+      <p
+        className="text-sm font-medium text-rose-600 dark:text-rose-400"
+        suppressHydrationWarning
+      >
         Time&apos;s up for {label} — nothing happens automatically, so ask
         your instructor to move things along.
       </p>
@@ -48,6 +58,13 @@ export function CountdownTimer({ deadline, label }: { deadline: string; label: s
           ? "text-sm font-medium text-amber-600 dark:text-amber-400"
           : "text-sm font-medium text-zinc-700 dark:text-zinc-300"
       }
+      // The server and the client each compute their own `now` a moment
+      // apart (this page isn't cached — it's re-rendered per request), so
+      // the very first paint can show a slightly different second than
+      // what hydration computes. That's expected for a live clock — see
+      // the Next.js docs' own "Date updates live (countdown timers,
+      // clocks)" guidance — and this is exactly the case it names.
+      suppressHydrationWarning
     >
       Time left for {label}: {minutes}:{seconds.toString().padStart(2, "0")}
     </p>
