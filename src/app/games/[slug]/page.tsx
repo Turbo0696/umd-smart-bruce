@@ -10,6 +10,7 @@ import { DiceSimulator } from "./DiceSimulator";
 import { FishBanksLanding } from "./FishBanksLanding";
 import { FishBanksSoloGame } from "./FishBanksSoloGame";
 import { ForecastingGame } from "./ForecastingGame";
+import { NegotiationLanding } from "./NegotiationLanding";
 import { NewsvendorLanding } from "./NewsvendorLanding";
 import { NewsvendorSoloGame } from "./NewsvendorSoloGame";
 import { OptimalStoppingSimulator } from "./OptimalStoppingSimulator";
@@ -27,7 +28,12 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
     notFound();
   }
 
-  if (slug === "beer-game" || slug === "newsvendor" || slug === "fish-banks") {
+  if (
+    slug === "beer-game" ||
+    slug === "newsvendor" ||
+    slug === "fish-banks" ||
+    slug === "negotiation-game"
+  ) {
     const canCreate = profile?.role === "INSTRUCTOR" || profile?.role === "ADMIN";
     const instructorCourses = canCreate
       ? await listCoursesForInstructor(profile!.id)
@@ -41,6 +47,11 @@ export default async function GamePage(props: PageProps<"/games/[slug]">) {
     if (slug === "fish-banks") {
       return (
         <FishBanksLanding game={game} profile={profile} instructorCourses={instructorCourses} />
+      );
+    }
+    if (slug === "negotiation-game") {
+      return (
+        <NegotiationLanding game={game} profile={profile} instructorCourses={instructorCourses} />
       );
     }
     return (

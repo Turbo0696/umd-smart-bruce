@@ -206,3 +206,40 @@ export function HourglassIcon({ className = "" }: IconProps) {
     </div>
   );
 }
+
+export function ContractIcon({ className = "" }: IconProps) {
+  return (
+    <div className={`${BADGE} ${className}`}>
+      <svg width={40} height={40} viewBox="0 0 40 40" role="img" aria-hidden="true">
+        <rect
+          x="8"
+          y="5"
+          width="20"
+          height="27"
+          rx="2"
+          className="fill-white stroke-zinc-300 dark:fill-zinc-900 dark:stroke-zinc-600"
+          strokeWidth={1.5}
+        />
+        <line x1="12" y1="12" x2="24" y2="12" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1.3} />
+        <line x1="12" y1="16" x2="24" y2="16" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1.3} />
+        <line x1="12" y1="20" x2="20" y2="20" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1.3} />
+        <path
+          d="M 12 26 Q 15 23 18 26 Q 21 29 24 26"
+          fill="none"
+          className="stroke-blue-500 dark:stroke-blue-400"
+          strokeWidth={1.6}
+          strokeLinecap="round"
+        />
+        <g transform="translate(21 18) rotate(15)">
+          <path
+            d="M 0 6 L 6 0 L 13 0 L 13 7 L 7 13 Z"
+            className="fill-amber-100 stroke-amber-500 dark:fill-amber-950 dark:stroke-amber-400"
+            strokeWidth={1.4}
+            strokeLinejoin="round"
+          />
+          <circle cx="9.5" cy="3.5" r="1.4" className="fill-amber-500 dark:fill-amber-400" />
+        </g>
+      </svg>
+    </div>
+  );
+}

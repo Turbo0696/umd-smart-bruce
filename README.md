@@ -44,9 +44,13 @@ upstream states. Full license text: [`LICENSE-CC-BY-SA-4.0.txt`](./LICENSE-CC-BY
 ## Tests
 
 ```bash
-npm test        # Vitest, unit tests for the Beer Game logic — no database needed
+npm test        # Vitest, unit tests for the Beer Game and Sourcing Negotiation logic — no database needed
 npm run test:watch
 ```
+
+`src/lib/negotiation.test.ts` and `negotiationBot.test.ts` cover the Sourcing
+Negotiation engine — the profit math, the two-echelon lot-sizing solver, the
+centralized-optimum benchmark, and the scripted bot's negotiation policy.
 
 `src/lib/beerGameParity.test.ts` checks the simulation against a fixture
 generated from siemsene/beergame's own engine. To regenerate that fixture:
@@ -72,6 +76,30 @@ untouched `PENDING` session), runs the migration against it twice, asserts 17
 outcomes, and rolls the whole thing back. `search_path` excludes `public`, so
 your own tables are neither read nor written. Needs `DIRECT_URL` in `.env`;
 exits non-zero if anything fails.
+
+### Rehearsing the Sourcing Negotiation session lifecycle
+
+The seat-management guards, the atomic session-start transaction, the RFQ
+stage-gating, and the `roundMinutes` overflow guard are all either
+DB-resident or JSX-resident — none of it is reachable by `npm test`. So it
+has its own rehearsal harness that exercises the real server actions against
+a live database:
+
+```bash
+node --experimental-strip-types scripts/verify-negotiation-session.mjs
+```
+
+It plays a full session through to settlement and cross-checks the recorded
+profit against an independent recomputation from the engine, confirms
+`kickToBot` rejects a dyad from another session and a settled dyad, races two
+concurrent `startSession`/`claimBotSeat` calls to confirm they don't
+double-create or double-seat, checks an absurd `roundMinutes` value doesn't
+wedge a session, and confirms a settlement-stage `refuseSettlement` call
+flips a dyad to a zero-profit `NO_DEAL` without blocking the rest of the
+session from completing. Every row it creates is deleted afterward regardless
+of outcome. Needs `DIRECT_URL` or `DATABASE_URL` in `.env` and the
+`negotiation-game` `Game` row seeded (`node prisma/seed.mjs`); exits non-zero
+if anything fails.
 
 ## Deploy on Vercel
 

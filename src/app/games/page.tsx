@@ -6,6 +6,7 @@ import type { GameCategory } from "@prisma/client";
 import {
   BabyFaceIcon,
   BeerMugIcon,
+  ContractIcon,
   DiceIcon,
   FishBoatIcon,
   HandshakeIcon,
@@ -25,6 +26,7 @@ const GAME_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   forecasting: TrendChartIcon,
   "fish-banks": FishBoatIcon,
   "fish-banks-solo": FishBoatIcon,
+  "negotiation-game": ContractIcon,
 };
 
 const SECTIONS: { category: GameCategory; title: string; blurb: string }[] = [

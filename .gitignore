@@ -50,3 +50,6 @@ demo-accounts.md
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch dir scripts/verify-negotiation-session.mjs builds and removes each run
+/.verify-negotiation-scratch/
