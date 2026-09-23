@@ -46,9 +46,7 @@ export function PValueCalculator() {
       </h1>
       <p className="mt-2 text-zinc-600 dark:text-zinc-400">
         Enter a t-statistic and degrees of freedom for an exact p-value from
-        Student&apos;s t-distribution, computed live with the same regularized
-        incomplete beta function statistical software uses — no table or
-        interpolation needed.
+        Student&apos;s t-distribution.
       </p>
 
       <div className="mt-6 flex flex-col gap-5 rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
