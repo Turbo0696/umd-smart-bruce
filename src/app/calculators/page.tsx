@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { ActivityGrid, type ActivityCard } from "@/components/ActivityGrid";
-import { BellCurveIcon } from "@/components/GameIcons";
+import { BellCurveIcon, BoxPlotIcon } from "@/components/GameIcons";
 
 // Calculators are stateless client-side tools, so unlike games and
 // simulations they're listed here in code rather than seeded as Game rows.
@@ -11,6 +11,13 @@ const CALCULATORS: ActivityCard[] = [
     description:
       "Enter a z-value, or a t-statistic and degrees of freedom, to get an exact left-, right-, or two-tailed p-value, with the tail area shaded on the distribution.",
     Icon: BellCurveIcon,
+  },
+  {
+    href: "/calculators/box-plot",
+    name: "Box Plot Calculator",
+    description:
+      "Paste a data set, or generate random practice data, to get quartiles, IQR, fences, whiskers, and outliers — drawn horizontally or vertically, with each step explained.",
+    Icon: BoxPlotIcon,
   },
 ];
 
