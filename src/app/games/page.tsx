@@ -1,40 +1,11 @@
-import type { ComponentType } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import type { GameCategory } from "@prisma/client";
-import {
-  BabyFaceIcon,
-  BeerMugIcon,
-  ContractIcon,
-  DiceIcon,
-  FishBoatIcon,
-  HandshakeIcon,
-  HourglassIcon,
-  NewspaperIcon,
-  TrendChartIcon,
-} from "@/components/GameIcons";
+import { ActivityGrid } from "@/components/ActivityGrid";
+import { GAME_ICONS } from "@/components/GameIcons";
 
-const GAME_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  "dice-simulator": DiceIcon,
-  "random-babies": BabyFaceIcon,
-  "prisoners-dilemma": HandshakeIcon,
-  "optimal-stopping": HourglassIcon,
-  "beer-game": BeerMugIcon,
-  newsvendor: NewspaperIcon,
-  "newsvendor-solo": NewspaperIcon,
-  forecasting: TrendChartIcon,
-  "fish-banks": FishBoatIcon,
-  "fish-banks-solo": FishBoatIcon,
-  "negotiation-game": ContractIcon,
-};
-
+// SIMULATION-category rows live on /simulations instead.
 const SECTIONS: { category: GameCategory; title: string; blurb: string }[] = [
-  {
-    category: "SIMULATION",
-    title: "Simulations",
-    blurb: "Open-ended tools for exploring a concept — no scoring, no session.",
-  },
   {
     category: "SINGLE_PLAYER",
     title: "Single-person games",
@@ -48,7 +19,10 @@ const SECTIONS: { category: GameCategory; title: string; blurb: string }[] = [
 ];
 
 export default async function GamesPage() {
-  const games = await prisma.game.findMany({ orderBy: { name: "asc" } });
+  const games = await prisma.game.findMany({
+    where: { category: { in: SECTIONS.map((s) => s.category) } },
+    orderBy: { name: "asc" },
+  });
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
@@ -61,20 +35,11 @@ export default async function GamesPage() {
         priority
       />
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-        Simulations &amp; games
+        Games
       </h1>
 
       {SECTIONS.map(({ category, title, blurb }) => {
-        // Alphabetical within a section, except Optimal Stopping always
-        // sorts last — it's the newest simulation and reads best as the
-        // final card rather than wherever its name falls alphabetically.
-        const inSection = games
-          .filter((g) => g.category === category)
-          .sort((a, b) => {
-            if (a.slug === "optimal-stopping") return 1;
-            if (b.slug === "optimal-stopping") return -1;
-            return 0;
-          });
+        const inSection = games.filter((g) => g.category === category);
         if (inSection.length === 0) return null;
         return (
           <section key={category} className="mb-10">
@@ -84,28 +49,14 @@ export default async function GamesPage() {
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
               {blurb}
             </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {inSection.map((game) => {
-                const Icon = GAME_ICONS[game.slug];
-                return (
-                  <Link
-                    key={game.slug}
-                    href={`/games/${game.slug}`}
-                    className="flex items-start justify-between gap-4 rounded-lg border border-zinc-200 p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
-                  >
-                    <div>
-                      <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                        {game.name}
-                      </h3>
-                      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                        {game.description}
-                      </p>
-                    </div>
-                    {Icon && <Icon />}
-                  </Link>
-                );
-              })}
-            </div>
+            <ActivityGrid
+              items={inSection.map((g) => ({
+                href: `/games/${g.slug}`,
+                name: g.name,
+                description: g.description,
+                Icon: GAME_ICONS[g.slug],
+              }))}
+            />
           </section>
         );
       })}
