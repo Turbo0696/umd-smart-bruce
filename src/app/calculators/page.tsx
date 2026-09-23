@@ -7,9 +7,9 @@ import { BellCurveIcon } from "@/components/GameIcons";
 const CALCULATORS: ActivityCard[] = [
   {
     href: "/calculators/p-value",
-    name: "p-Value Calculator",
+    name: "z & t p-Value Calculator",
     description:
-      "Enter a t-statistic and degrees of freedom to get an exact left-, right-, or two-tailed p-value, with the shaded tail area drawn on the t-distribution.",
+      "Enter a z-value, or a t-statistic and degrees of freedom, to get an exact left-, right-, or two-tailed p-value, with the tail area shaded on the distribution.",
     Icon: BellCurveIcon,
   },
 ];
