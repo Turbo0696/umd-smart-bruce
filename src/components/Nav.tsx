@@ -72,7 +72,9 @@ export function Nav({ profile }: { profile: NavProfile }) {
                 <Link href="/" className={linkClass} onClick={close}>Home</Link>
                 <Link href="/topics" className={linkClass} onClick={close}>Topics</Link>
                 <Link href="/courses" className={linkClass} onClick={close}>Courses</Link>
-                <Link href="/games" className={linkClass} onClick={close}>Simulations &amp; games</Link>
+                <Link href="/calculators" className={linkClass} onClick={close}>Calculators</Link>
+                <Link href="/simulations" className={linkClass} onClick={close}>Simulations</Link>
+                <Link href="/games" className={linkClass} onClick={close}>Games</Link>
                 {canManageTutors && (
                   <Link href="/tutors" className={linkClass} onClick={close}>AI Tutors</Link>
                 )}

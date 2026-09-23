@@ -1,3 +1,5 @@
+import type { ComponentType } from "react";
+
 type IconProps = { className?: string };
 
 const BADGE = "shrink-0 rounded-xl bg-zinc-50 p-2.5 dark:bg-zinc-800/60";
@@ -243,3 +245,40 @@ export function ContractIcon({ className = "" }: IconProps) {
     </div>
   );
 }
+
+export function BellCurveIcon({ className = "" }: IconProps) {
+  return (
+    <div className={`${BADGE} ${className}`}>
+      <svg width={40} height={40} viewBox="0 0 40 40" role="img" aria-hidden="true">
+        <path
+          d="M 28 32 L 28 24.5 C 30 28 33 31 36 31.5 L 36 32 Z"
+          className="fill-amber-200 dark:fill-amber-500/60"
+        />
+        <path
+          d="M 4 31.5 C 10 31 13 8 20 8 C 27 8 30 31 36 31.5"
+          fill="none"
+          className="stroke-blue-500 dark:stroke-blue-400"
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+        <line x1="28" y1="14" x2="28" y2="32" className="stroke-zinc-400 dark:stroke-zinc-500" strokeWidth={1.2} />
+        <line x1="3" y1="32" x2="37" y2="32" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1.2} />
+      </svg>
+    </div>
+  );
+}
+
+// Card icon for each DB-backed game/simulation, keyed by slug.
+export const GAME_ICONS: Record<string, ComponentType<IconProps>> = {
+  "dice-simulator": DiceIcon,
+  "random-babies": BabyFaceIcon,
+  "prisoners-dilemma": HandshakeIcon,
+  "optimal-stopping": HourglassIcon,
+  "beer-game": BeerMugIcon,
+  newsvendor: NewspaperIcon,
+  "newsvendor-solo": NewspaperIcon,
+  forecasting: TrendChartIcon,
+  "fish-banks": FishBoatIcon,
+  "fish-banks-solo": FishBoatIcon,
+  "negotiation-game": ContractIcon,
+};
