@@ -68,7 +68,7 @@ export function PValueCalculator() {
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-12">
       <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-        z &amp; t p-Value Calculator
+        p-Value Calculator
       </h1>
       <p className="mt-2 text-zinc-600 dark:text-zinc-400">
         {isZ ? (
