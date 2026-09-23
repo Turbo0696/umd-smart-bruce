@@ -268,6 +268,22 @@ export function BellCurveIcon({ className = "" }: IconProps) {
   );
 }
 
+export function BoxPlotIcon({ className = "" }: IconProps) {
+  return (
+    <div className={`${BADGE} ${className}`}>
+      <svg width={40} height={40} viewBox="0 0 40 40" role="img" aria-hidden="true">
+        <line x1="5" y1="20" x2="13" y2="20" className="stroke-zinc-400 dark:stroke-zinc-500" strokeWidth={1.5} />
+        <line x1="27" y1="20" x2="33" y2="20" className="stroke-zinc-400 dark:stroke-zinc-500" strokeWidth={1.5} />
+        <line x1="5" y1="15" x2="5" y2="25" className="stroke-zinc-400 dark:stroke-zinc-500" strokeWidth={1.5} />
+        <line x1="33" y1="15" x2="33" y2="25" className="stroke-zinc-400 dark:stroke-zinc-500" strokeWidth={1.5} />
+        <rect x="13" y="11" width="14" height="18" rx="2" className="fill-blue-50 stroke-blue-500 dark:fill-blue-950 dark:stroke-blue-400" strokeWidth={1.5} />
+        <line x1="19" y1="11" x2="19" y2="29" className="stroke-blue-600 dark:stroke-blue-300" strokeWidth={2.2} />
+        <circle cx="37" cy="20" r="1.8" className="fill-rose-500 dark:fill-rose-400" />
+      </svg>
+    </div>
+  );
+}
+
 // Card icon for each DB-backed game/simulation, keyed by slug.
 export const GAME_ICONS: Record<string, ComponentType<IconProps>> = {
   "dice-simulator": DiceIcon,
