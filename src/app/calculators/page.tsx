@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { ActivityGrid, type ActivityCard } from "@/components/ActivityGrid";
-import { BellCurveIcon, BoxPlotIcon } from "@/components/GameIcons";
+import { BellCurveIcon, BoxPlotIcon, SpreadsheetIcon } from "@/components/GameIcons";
 
 // Calculators are stateless client-side tools, so unlike games and
 // simulations they're listed here in code rather than seeded as Game rows.
@@ -18,6 +18,13 @@ const CALCULATORS: ActivityCard[] = [
     description:
       "Paste a data set, or generate random practice data, to get quartiles, IQR, fences, whiskers, and outliers — drawn horizontally or vertically, with each step explained.",
     Icon: BoxPlotIcon,
+  },
+  {
+    href: "/calculators/excel-simulator",
+    name: "Excel Simulator",
+    description:
+      "A small practice spreadsheet with Excel's statistical functions — NORM.INV, T.DIST, CHISQ.INV.RT, F.INV.RT, BINOM.DIST and more — for trying formulas without opening Excel.",
+    Icon: SpreadsheetIcon,
   },
 ];
 
