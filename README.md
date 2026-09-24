@@ -60,6 +60,20 @@ git clone --depth 1 https://github.com/siemsene/beergame.git /tmp/beergame
 node scripts/generate-parity-fixture.mts /tmp/beergame
 ```
 
+`src/lib/spreadsheet.test.ts`, `spreadsheetState.test.ts` and
+`spreadsheetReference.test.ts` cover the Excel Simulator: the formula engine
+(including Excel's ROUND, blank-cell and operator-precedence rules), the grid
+interactions, and 2,300+ reference values computed with mpmath at 28 digits —
+extreme tails, degrees of freedom up to 1e7, n up to 1e6. To regenerate that
+fixture (needs Python and `pip install mpmath`):
+
+```bash
+cd scripts/spreadsheet-reference
+python gen_grid.py grid.json
+python gen_large.py large.json
+python make_fixture.py grid.json large.json ../../src/lib/__fixtures__/spreadsheetReference.json
+```
+
 ### Rehearsing the Beer Game database migration
 
 `prisma/sql/beer-game-cohorts.sql` is DDL against a live database — it retires

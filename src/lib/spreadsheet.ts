@@ -5,6 +5,7 @@
 import {
   binomCdf,
   binomPmf,
+  binomSf,
   chiSqCdf,
   chiSqPdf,
   chiSqRightTail,
@@ -16,9 +17,8 @@ import {
   solveMonotone,
   tCdf,
   tPdf,
-  tTail,
+  tCentral,
   tTwoTail,
-  tUpperInv,
 } from "@/lib/spreadsheetMath";
 
 export const COLS = "ABCDEFGHIJ";
@@ -68,25 +68,39 @@ const fail = (code: string): never => {
   throw new SheetError(code);
 };
 
-/** A function argument: a number, a text cell, or a range of them. */
-type Arg = number | string | Arg[];
+/** A cell used on its own as a function argument: "" when blank, else its value. */
+interface CellArg {
+  cell: number | string;
+}
+
+/** A function argument: a number, a range of cells, or a single cell reference. */
+type Arg = number | string | Arg[] | CellArg;
 type Fn = (...a: Arg[]) => number;
 
+const isCellArg = (x: Arg): x is CellArg => typeof x === "object" && !Array.isArray(x);
+
+/** Numbers among the arguments. Like Excel, blank and text cells in references are skipped. */
 function flat(a: Arg[]): number[] {
   const out: number[] = [];
   const walk = (x: Arg[]) => {
     for (const v of x) {
       if (Array.isArray(v)) walk(v);
-      else if (typeof v === "number" && Number.isFinite(v)) out.push(v);
+      else if (isCellArg(v)) {
+        if (typeof v.cell === "number" && Number.isFinite(v.cell)) out.push(v.cell);
+      } else if (typeof v === "number" && Number.isFinite(v)) out.push(v);
     }
   };
   walk(a);
   return out;
 }
 
+/** A single number: a literal, or a one-cell reference (blank counts as 0, text is #VALUE!). */
 function S(x: Arg | undefined): number {
-  if (typeof x !== "number" || Number.isNaN(x)) return fail("#VALUE!");
-  return x;
+  let v: Arg | undefined = x;
+  if (Array.isArray(v) && v.length === 1) v = v[0];
+  if (v !== undefined && isCellArg(v)) v = v.cell === "" ? 0 : v.cell;
+  if (typeof v !== "number" || Number.isNaN(v)) return fail("#VALUE!");
+  return v;
 }
 
 const sum = (v: number[]) => v.reduce((a, b) => a + b, 0);
@@ -104,6 +118,42 @@ function df(d: Arg | undefined): number {
   const n = Math.floor(S(d));
   if (n < 1) fail("#NUM!");
   return n;
+}
+
+/** Excel's power rules: 0^0 is #NUM!, 0 to a negative power is #DIV/0!, a negative base to a fraction is #NUM!. */
+function power(base: number, exp: number): number {
+  if (base === 0 && exp === 0) return fail("#NUM!");
+  if (base === 0 && exp < 0) return fail("#DIV/0!");
+  return Math.pow(base, exp);
+}
+
+/** Moves the decimal point of `v` by `shift` places, via its 15-digit scientific-notation string. */
+function shiftDecimal(v: number, shift: number): number {
+  const [m, e] = v.toExponential(14).split("e");
+  return Number(m + "e" + (Number(e) + shift));
+}
+
+/**
+ * Excel's ROUND: half away from zero, applied to the 15-significant-digit
+ * decimal value, so ROUND(1.005, 2) is 1.01 even though 1.005 is stored as
+ * 1.00499999999999989…
+ */
+function excelRound(v: number, digits: number): number {
+  if (v === 0 || !Number.isFinite(v)) return v;
+  const out = shiftDecimal(Math.round(shiftDecimal(Math.abs(v), digits)), -digits);
+  return v < 0 ? -out : out;
+}
+
+/** Largest |t| the t solver will look for; beyond it t² overflows a double. */
+const T_MAX = 1e150;
+
+/** The t > 0 with P(|T| > t) = p, solving whichever of the tail (p) or central mass (1 − p) is the small one. */
+function tTwoTailInv(p: number, n: number): number {
+  const t =
+    p >= 0.5
+      ? solveMonotone((x) => tCentral(x, n), 1 - p, true, T_MAX)
+      : solveMonotone((x) => tTwoTail(x, n), p, false, T_MAX);
+  return Number.isNaN(t) ? fail("#NUM!") : t;
 }
 
 const FUNCTIONS: Record<string, Fn> = {
@@ -133,9 +183,26 @@ const FUNCTIONS: Record<string, Fn> = {
   "VAR.S": (...a) => variance(flat(a), true),
   "VAR.P": (...a) => variance(flat(a), false),
   CORREL: (a, b) => {
-    const x = flat([a]);
-    const y = flat([b]);
-    if (x.length !== y.length || x.length < 2) fail("#N/A");
+    // Cells are paired by position; a pair with a blank or text on either side is dropped.
+    const cells = (arg: Arg): (number | string)[] =>
+      Array.isArray(arg)
+        ? arg.map((v) => (isCellArg(v as Arg) ? (v as CellArg).cell : (v as number | string)))
+        : isCellArg(arg)
+          ? [arg.cell]
+          : [arg];
+    const xs = cells(a);
+    const ys = cells(b);
+    if (xs.length !== ys.length) fail("#N/A");
+    const x: number[] = [];
+    const y: number[] = [];
+    xs.forEach((v, i) => {
+      const w = ys[i];
+      if (typeof v === "number" && typeof w === "number") {
+        x.push(v);
+        y.push(w);
+      }
+    });
+    if (x.length < 2) fail("#DIV/0!");
     const mx = mean(x);
     const my = mean(y);
     let sxy = 0;
@@ -161,11 +228,8 @@ const FUNCTIONS: Record<string, Fn> = {
     return Math.log(v);
   },
   EXP: (x) => Math.exp(S(x)),
-  POWER: (x, y) => Math.pow(S(x), S(y)),
-  ROUND: (x, d) => {
-    const k = Math.pow(10, S(d === undefined ? 0 : d));
-    return Math.round(S(x) * k) / k;
-  },
+  POWER: (x, y) => power(S(x), S(y)),
+  ROUND: (x, d) => excelRound(S(x), Math.trunc(S(d === undefined ? 0 : d))),
 
   "NORM.S.DIST": (z, cum) => {
     const v = S(z);
@@ -206,14 +270,15 @@ const FUNCTIONS: Record<string, Fn> = {
   "T.DIST.RT": (x, d) => {
     const t = S(x);
     const n = df(d);
-    return t >= 0 ? tTail(t, n) : 1 - tTail(t, n);
+    return tCdf(-t, n); // P(T > t) = P(T < −t)
   },
   "T.INV": (p, d) => {
     const pv = S(p);
     const n = df(d);
     if (pv <= 0 || pv >= 1) fail("#NUM!");
     if (pv === 0.5) return 0;
-    const t = tUpperInv(Math.min(pv, 1 - pv), n);
+    // 2·min(p, 1 − p) is exact, and is the two-tailed probability of |t|.
+    const t = tTwoTailInv(2 * Math.min(pv, 1 - pv), n);
     return pv < 0.5 ? -t : t;
   },
   "T.INV.2T": (p, d) => {
@@ -221,14 +286,16 @@ const FUNCTIONS: Record<string, Fn> = {
     const n = df(d);
     if (pv <= 0 || pv > 1) fail("#NUM!");
     if (pv === 1) return 0;
-    return tUpperInv(pv / 2, n);
+    return tTwoTailInv(pv, n);
   },
 
   "CHISQ.DIST": (x, d, cum) => {
     const v = S(x);
     const n = df(d);
     if (v < 0) fail("#NUM!");
-    return S(cum) ? chiSqCdf(v, n) : chiSqPdf(v, n);
+    if (S(cum)) return chiSqCdf(v, n);
+    const dens = chiSqPdf(v, n);
+    return Number.isFinite(dens) ? dens : fail("#DIV/0!");
   },
   "CHISQ.DIST.RT": (x, d) => {
     const v = S(x);
@@ -241,14 +308,19 @@ const FUNCTIONS: Record<string, Fn> = {
     const n = df(d);
     if (pv < 0 || pv >= 1) fail("#NUM!");
     if (pv === 0) return 0;
-    return solveMonotone((x) => chiSqCdf(x, n), pv, true);
+    // Solve for the smaller of p and 1 − p (exact when p ≥ ½) so no digits cancel.
+    return pv <= 0.5
+      ? solveMonotone((x) => chiSqCdf(x, n), pv, true)
+      : solveMonotone((x) => chiSqRightTail(x, n), 1 - pv, false);
   },
   "CHISQ.INV.RT": (p, d) => {
     const pv = S(p);
     const n = df(d);
     if (pv <= 0 || pv > 1) fail("#NUM!");
     if (pv === 1) return 0;
-    return solveMonotone((x) => chiSqRightTail(x, n), pv, false);
+    return pv <= 0.5
+      ? solveMonotone((x) => chiSqRightTail(x, n), pv, false)
+      : solveMonotone((x) => chiSqCdf(x, n), 1 - pv, true);
   },
 
   "F.DIST": (x, a, b, cum) => {
@@ -256,7 +328,9 @@ const FUNCTIONS: Record<string, Fn> = {
     const d1 = df(a);
     const d2 = df(b);
     if (v < 0) fail("#NUM!");
-    return S(cum) ? fCdf(v, d1, d2) : fPdf(v, d1, d2);
+    if (S(cum)) return fCdf(v, d1, d2);
+    const dens = fPdf(v, d1, d2);
+    return Number.isFinite(dens) ? dens : fail("#DIV/0!");
   },
   "F.DIST.RT": (x, a, b) => {
     const v = S(x);
@@ -271,7 +345,9 @@ const FUNCTIONS: Record<string, Fn> = {
     const d2 = df(b);
     if (pv < 0 || pv >= 1) fail("#NUM!");
     if (pv === 0) return 0;
-    return solveMonotone((x) => fCdf(x, d1, d2), pv, true);
+    return pv <= 0.5
+      ? solveMonotone((x) => fCdf(x, d1, d2), pv, true)
+      : solveMonotone((x) => fRightTail(x, d1, d2), 1 - pv, false);
   },
   "F.INV.RT": (p, a, b) => {
     const pv = S(p);
@@ -279,7 +355,9 @@ const FUNCTIONS: Record<string, Fn> = {
     const d2 = df(b);
     if (pv <= 0 || pv > 1) fail("#NUM!");
     if (pv === 1) return 0;
-    return solveMonotone((x) => fRightTail(x, d1, d2), pv, false);
+    return pv <= 0.5
+      ? solveMonotone((x) => fRightTail(x, d1, d2), pv, false)
+      : solveMonotone((x) => fCdf(x, d1, d2), 1 - pv, true);
   },
 
   "BINOM.DIST": (k, n, p, cum) => {
@@ -294,8 +372,21 @@ const FUNCTIONS: Record<string, Fn> = {
     const pv = S(p);
     const a = S(alpha);
     if (nv < 0 || pv < 0 || pv > 1 || a < 0 || a > 1) fail("#NUM!");
-    for (let k = 0; k <= nv; k++) if (binomCdf(k, nv, pv) >= a - 1e-12) return k;
-    return nv;
+    // Smallest k with P(X ≤ k) ≥ alpha. All the mass is only reached at k = n
+    // (or at 0 if p = 0), however small the last few probabilities are.
+    if (a === 1) return pv === 0 ? 0 : nv;
+    // For alpha ≥ ½ compare the upper tail with 1 − alpha, which is exact there.
+    // The 1e-14 slack lets an alpha typed as exactly P(X ≤ k) count as a match.
+    const enough = (k: number) =>
+      a >= 0.5 ? binomSf(k, nv, pv) <= (1 - a) * (1 + 1e-14) : binomCdf(k, nv, pv) >= a * (1 - 1e-14);
+    let lo = 0;
+    let hi = nv;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (enough(mid)) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo;
   },
 };
 
@@ -361,7 +452,7 @@ function tokenize(src: string): Token[] {
       i += word[0].length;
       continue;
     }
-    if ("+-*/(),:".includes(ch)) {
+    if ("+-*/^%(),:".includes(ch)) {
       out.push({ t: "op", v: ch });
       i++;
       continue;
@@ -377,11 +468,13 @@ type Lookup = (k: string) => number | string;
 /**
  * Evaluates one formula (without the leading "="). Grammar:
  *   expr    := term (("+" | "-") term)*
- *   term    := unary (("*" | "/") unary)*
- *   unary   := ("+" | "-") unary | primary
+ *   term    := power (("*" | "/") power)*
+ *   power   := unary ("^" unary)*          left-associative, like Excel: 2^3^2 = 64
+ *   unary   := ("+" | "-") unary | postfix  so -2^2 = 4, like Excel
+ *   postfix := primary "%"*
  *   primary := number | "(" expr ")" | NAME "(" [arg ("," arg)*] ")"
  *            | cell | TRUE | FALSE
- *   arg     := cell ":" cell | expr
+ *   arg     := cell ":" cell | cell (on its own) | expr
  * A range is only valid as a function argument.
  */
 function evalFormula(formula: string, lookup: Lookup): number {
@@ -417,11 +510,8 @@ function evalFormula(formula: string, lookup: Lookup): number {
     const r1 = Number(m1[2]);
     const r2 = Number(m2[2]);
     const out: Arg[] = [];
-    for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
-      for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
-        const v = lookup(COLS[c] + r);
-        if (v !== "") out.push(v);
-      }
+    for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+      for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) out.push(lookup(COLS[c] + r));
     }
     return out;
   };
@@ -439,6 +529,11 @@ function evalFormula(formula: string, lookup: Lookup): number {
     ) {
       pos += 3;
       return range(t.v, end.v);
+    }
+    // A cell on its own is passed as a reference, so SUM / AVERAGE / COUNT skip it if blank or text.
+    if (t?.t === "word" && CELL_RE.test(t.v) && colon?.t === "op" && (colon.v === "," || colon.v === ")")) {
+      pos++;
+      return { cell: lookup(t.v) };
     }
     return expr();
   };
@@ -482,14 +577,32 @@ function evalFormula(formula: string, lookup: Lookup): number {
       pos++;
       return unary();
     }
-    return primary();
+    return postfix();
+  };
+
+  const postfix = (): number => {
+    let v = primary();
+    while (isOp("%")) {
+      pos++;
+      v /= 100;
+    }
+    return v;
+  };
+
+  const exponent = (): number => {
+    let v = unary();
+    while (isOp("^")) {
+      pos++;
+      v = power(v, unary());
+    }
+    return v;
   };
 
   const term = (): number => {
-    let v = unary();
+    let v = exponent();
     while (isOp("*") || isOp("/")) {
       const op = (toks[pos++] as { v: string }).v;
-      const rhs = unary();
+      const rhs = exponent();
       if (op === "*") v *= rhs;
       else if (rhs === 0) return fail("#DIV/0!");
       else v /= rhs;
@@ -510,7 +623,7 @@ function evalFormula(formula: string, lookup: Lookup): number {
   const result = expr();
   // A leftover ":" is a bare range (=A1:B2), which can't be a single value.
   if (pos < toks.length) fail(isOp(":") ? "#VALUE!" : "#ERR!");
-  if (!Number.isFinite(result)) return fail(Number.isNaN(result) ? "#VALUE!" : "#DIV/0!");
+  if (!Number.isFinite(result)) return fail("#NUM!"); // overflow, or NaN such as ∞ − ∞
   return result;
 }
 
@@ -524,9 +637,13 @@ export interface CellResult {
   num: number | null;
 }
 
-/** 10 significant digits, like Excel's General format. */
+/** Like Excel's General format: whole numbers in full, everything else to 10 significant digits. */
 export function formatNumber(v: number): string {
-  return String(parseFloat(v.toPrecision(10)));
+  if (Number.isInteger(v) && Math.abs(v) < 1e15) return String(v);
+  return String(parseFloat(v.toPrecision(10))).replace(
+    /e([+-])(\d+)$/,
+    (_m, sign: string, digits: string) => "E" + sign + digits.padStart(2, "0"),
+  );
 }
 
 /** Evaluates every cell once, sharing results between dependents. */

@@ -204,3 +204,211 @@ describe("cycleAbsolute (F4)", () => {
     expect(cycleAbsolute("=T.DIST(1,2,1)", 3)).toBeNull();
   });
 });
+
+/** Asserts a formula's value to within `tol` (absolute), or to 10 significant digits when omitted. */
+function near(formula: string, expected: number, tol?: number, others: Cells = {}) {
+  const got = num(formula, others);
+  const allowed = tol ?? Math.abs(expected) * 1e-9;
+  expect(Math.abs(got - expected) <= allowed).toBe(true);
+}
+
+describe("examples from Microsoft's Excel function documentation", () => {
+  it("normal", () => {
+    near("=NORM.S.DIST(1.333333,TRUE)", 0.908788726, 5e-10);
+    near("=NORM.DIST(42,40,1.5,TRUE)", 0.90878878, 5e-9);
+    near("=NORM.DIST(42,40,1.5,FALSE)", 0.10934005, 5e-9);
+    near("=NORM.INV(0.908789,40,1.5)", 42.000002, 5e-7);
+    near("=NORM.S.INV(0.908789)", 1.33333467, 5e-8);
+  });
+
+  it("t", () => {
+    near("=T.DIST(60,1,TRUE)", 0.99469533, 5e-9);
+    // With 3 df the density has a closed form: 2 / (π√3 (1 + t²/3)²).
+    near("=T.DIST(8,3,FALSE)", 2 / (Math.PI * Math.sqrt(3) * (1 + 64 / 3) ** 2), 1e-17);
+    near("=T.DIST.2T(1.959999998,60)", 0.05464493, 5e-9);
+    near("=T.DIST.RT(1.959999998,60)", 0.027322465, 5e-9);
+    near("=T.INV(0.75,2)", 0.816496581, 5e-9);
+    near("=T.INV.2T(0.546449,60)", 0.606533, 5e-7);
+  });
+
+  it("chi-square and F", () => {
+    near("=CHISQ.DIST(0.5,1,TRUE)", 0.52049988, 5e-9);
+    near("=CHISQ.DIST(2,3,FALSE)", 0.20755375, 5e-9);
+    near("=CHISQ.DIST.RT(18.307,10)", 0.0500006, 5e-8);
+    near("=CHISQ.INV(0.93,1)", 3.283020286, 5e-9);
+    near("=CHISQ.INV.RT(0.050001,10)", 18.30697, 5e-6);
+    near("=F.DIST(15.2069,6,4,TRUE)", 0.99, 5e-6);
+    near("=F.DIST(15.2069,6,4,FALSE)", 0.0012238, 5e-8);
+    near("=F.DIST.RT(15.2069,6,4)", 0.01, 5e-6);
+    near("=F.INV(0.01,6,4)", 0.10930991, 5e-9);
+    near("=F.INV.RT(0.01,6,4)", 15.20686486, 5e-8);
+  });
+
+  it("binomial", () => {
+    near("=BINOM.DIST(6,10,0.5,FALSE)", 0.205078125, 1e-15);
+    near("=BINOM.INV(6,0.5,0.75)", 4, 0);
+  });
+
+  it("descriptive statistics", () => {
+    const strength = Object.fromEntries(
+      [1345, 1301, 1368, 1322, 1310, 1370, 1318, 1350, 1303, 1299].map((v, i) => [`B${i + 1}`, String(v)]),
+    );
+    near("=STDEV.S(B1:B10)", 27.46391572, 5e-8, strength);
+    near("=STDEV.P(B1:B10)", 26.05455814, 5e-8, strength);
+    near("=VAR.S(B1:B10)", 754.2666667, 5e-7, strength);
+    near("=VAR.P(B1:B10)", 678.84, 5e-6, strength);
+    near("=CORREL(B1:B5,C1:C5)", 0.997054486, 5e-9, { B1: "3", B2: "2", B3: "4", B4: "5", B5: "6", C1: "9", C2: "7", C3: "12", C4: "15", C5: "17" });
+    near("=MEDIAN(B1:B6)", 3.5, 0, { B1: "1", B2: "2", B3: "3", B4: "4", B5: "5", B6: "6" });
+  });
+
+  it("ROUND and POWER", () => {
+    for (const [f, want] of [
+      ["=ROUND(2.15,1)", 2.2], ["=ROUND(2.149,1)", 2.1], ["=ROUND(-1.475,2)", -1.48],
+      ["=ROUND(21.5,-1)", 20], ["=ROUND(626.3,-3)", 1000], ["=ROUND(1.98,-1)", 0], ["=ROUND(-50.55,-2)", -100],
+    ] as const) {
+      expect(num(f)).toBe(want);
+    }
+    near("=POWER(5,2)", 25, 0);
+    near("=POWER(98.6,3.2)", 2401077.222, 5e-4);
+    near("=POWER(4,5/4)", 5.656854249, 5e-9);
+    near("=LN(86)", 4.454347296, 5e-9);
+    near("=EXP(2)", 7.389056099, 5e-9);
+  });
+});
+
+describe("Excel behaviour that differs from plain JavaScript", () => {
+  it("ROUND is half away from zero on the decimal value", () => {
+    expect(num("=ROUND(2.5,0)")).toBe(3);
+    expect(num("=ROUND(-2.5,0)")).toBe(-3);
+    expect(num("=ROUND(-0.5,0)")).toBe(-1);
+    expect(num("=ROUND(1.005,2)")).toBe(1.01);
+    expect(num("=ROUND(-1.005,2)")).toBe(-1.01);
+    expect(num("=ROUND(2.675,2)")).toBe(2.68);
+    expect(num("=ROUND(123.456,1.9)")).toBe(123.5);
+    expect(show("=ROUND(1E21,2)")).toBe("1E+21");
+  });
+
+  it("aggregates skip blank and text cells given by reference, but not literals", () => {
+    expect(num("=AVERAGE(B1,B2)", { B1: "4" })).toBe(4);
+    expect(num("=COUNT(B1,B2)", { B1: "4" })).toBe(1);
+    expect(num("=SUM(B1)", { B1: "hello" })).toBe(0);
+    expect(num("=MIN(B1,B2)", { B1: "4" })).toBe(4);
+    expect(num("=MEDIAN(B1,B2,B3)", { B1: "1", B3: "3" })).toBe(2);
+    expect(num("=STDEV.S(B1,B2,B3)", { B1: "1", B2: "3" })).toBeCloseTo(Math.SQRT2, 12);
+    expect(num("=AVERAGE(B1,B2,6)", { B1: "4" })).toBe(5);
+  });
+
+  it("a blank cell is 0 and text is #VALUE! where a single number is required", () => {
+    expect(num("=SQRT(B1)")).toBe(0);
+    expect(num("=B1+1")).toBe(1);
+    expect(show("=SQRT(B1)", { B1: "abc" })).toBe("#VALUE!");
+    expect(show("=B1*2", { B1: "abc" })).toBe("#VALUE!");
+  });
+
+  it("CORREL pairs cells by position and drops pairs with a blank or text", () => {
+    const cells = { B1: "1", B2: "2", B3: "x", B4: "4", C1: "2", C2: "4", C3: "6", C4: "8" };
+    expect(num("=CORREL(B1:B4,C1:C4)", cells)).toBeCloseTo(1, 14);
+    expect(show("=CORREL(B1:B4,C1:C3)", cells)).toBe("#N/A");
+    expect(show("=CORREL(B1:B2,C1:C2)", { B1: "1", B2: "1", C1: "1", C2: "2" })).toBe("#DIV/0!");
+  });
+
+  it("^ and % follow Excel's precedence", () => {
+    expect(num("=2^3")).toBe(8);
+    expect(num("=-2^2")).toBe(4); // unary minus binds tighter than ^
+    expect(num("=2^3^2")).toBe(64); // ^ is left-associative
+    expect(num("=2^-1")).toBe(0.5);
+    expect(num("=2*3^2")).toBe(18);
+    expect(num("=50%")).toBe(0.5);
+    expect(num("=200*10%")).toBe(20);
+    expect(num("=10%^2")).toBeCloseTo(0.01, 15);
+  });
+
+  it("uses Excel's error codes for overflow and invalid powers", () => {
+    expect(show("=POWER(0,0)")).toBe("#NUM!");
+    expect(show("=0^0")).toBe("#NUM!");
+    expect(show("=POWER(0,-1)")).toBe("#DIV/0!");
+    expect(show("=POWER(-8,1/3)")).toBe("#NUM!");
+    expect(show("=EXP(710)")).toBe("#NUM!");
+    expect(show("=1E308*10")).toBe("#NUM!");
+    expect(show("=1/0")).toBe("#DIV/0!");
+  });
+
+  it("displays like Excel's General format", () => {
+    expect(show("=123456789012")).toBe("123456789012");
+    expect(show("=1E21")).toBe("1E+21");
+    expect(show("=0.00000015")).toBe("1.5E-07");
+    expect(show("=1/3")).toBe("0.3333333333");
+    expect(show("=-1/3")).toBe("-0.3333333333");
+  });
+});
+
+describe("accuracy in the tails and at large parameters", () => {
+  const rel = (formula: string, expected: number, tol = 1e-12) => {
+    const got = num(formula);
+    expect(Math.abs(got - expected) <= Math.abs(expected) * tol).toBe(true);
+  };
+
+  it("normal tails and quantiles are accurate far from the centre", () => {
+    rel("=NORM.S.DIST(-10,1)", 7.619853024160527e-24);
+    rel("=NORM.S.INV(1E-15)", -7.941345326170997);
+    rel("=NORM.S.INV(0.9999999999)", 6.361340889697422);
+    rel("=NORM.S.INV(1E-300)", -37.047096299361199);
+    rel("=NORM.S.INV(0.5000000001)", 2.5066284820303539e-10); // just above the median
+  });
+
+  it("inverses stay accurate when p is next to 1", () => {
+    rel("=CHISQ.INV.RT(0.9999999999,1)", 1.570796586731449e-20);
+    rel("=CHISQ.INV.RT(0.9999999999,3)", 5.209397908786167e-7);
+    rel("=T.INV.2T(0.9999999999,10000)", 1.253345574262814e-10);
+    rel("=F.INV(0.9999999,30,1)", 62609930355540.88, 1e-11);
+    rel("=F.INV.RT(0.9999999,1,1000)", 1.5715819195551845e-14, 1e-11);
+  });
+
+  it("stays accurate with a million degrees of freedom or trials", () => {
+    rel("=T.DIST(-0.001,10000,1)", 0.49960106775952625, 1e-13);
+    near("=T.INV.2T(0.05,1000000)", 1.9599, 1e-4);
+    near("=NORM.S.INV(0.975)", 1.959963984540054, 1e-14);
+    const pmf = num("=BINOM.DIST(500000,1000000,0.5,FALSE)");
+    expect(Math.abs(pmf - 7.978845608028654e-4) < 1e-9).toBe(true); // 1/√(π·500000), to 5 digits by Stirling
+  });
+
+  it("reports #NUM! rather than a wrong number when a t quantile is beyond double range", () => {
+    expect(show("=T.INV.2T(1E-300,1)")).toBe("#NUM!");
+  });
+
+  it("BINOM.INV", () => {
+    expect(num("=BINOM.INV(2,1E-6,1)")).toBe(2); // all the mass is only reached at n
+    expect(num("=BINOM.INV(500,1E-6,1)")).toBe(500);
+    expect(num("=BINOM.INV(10,0,1)")).toBe(0);
+    expect(num("=BINOM.INV(10,0.5,0)")).toBe(0);
+    expect(num("=BINOM.INV(10,0.5,0.623046875)")).toBe(5); // exactly P(X ≤ 5)
+    expect(num("=BINOM.INV(2,0.9,0.01)")).toBe(0); // (0.1)² is 0.01 in decimal, so it's a tie that counts
+    expect(num("=BINOM.INV(1000000,0.5,0.5)")).toBe(500000); // binary search, so a big n is instant
+  });
+});
+
+describe("round trips", () => {
+  const ps = [1e-12, 1e-6, 0.001, 0.05, 0.3, 0.5, 0.7, 0.95, 0.999, 1 - 1e-9];
+  const tol = (p: number) => 1e-12 * Math.min(p, 1 - p) + 1e-15; // absolute in p, tighter in the tails
+
+  it("cdf(inverse(p)) = p", () => {
+    for (const p of ps) {
+      const check = (inv: string, cdf: (x: string) => string) => {
+        const x = num(inv.replace("P", String(p)));
+        expect(Math.abs(num(cdf(String(x))) - p) <= tol(p)).toBe(true);
+      };
+      check("=NORM.S.INV(P)", (x) => `=NORM.S.DIST(${x},1)`);
+      check("=T.INV(P,7)", (x) => `=T.DIST(${x},7,1)`);
+      check("=CHISQ.INV(P,5)", (x) => `=CHISQ.DIST(${x},5,1)`);
+      check("=CHISQ.INV.RT(P,5)", (x) => `=CHISQ.DIST.RT(${x},5)`);
+      check("=F.INV(P,4,9)", (x) => `=F.DIST(${x},4,9,1)`);
+    }
+  });
+
+  it("the t distribution is symmetric", () => {
+    for (const x of [0.001, 0.7, 2.3, 9]) {
+      expect(num(`=T.DIST(-${x},12,1)`) + num(`=T.DIST(${x},12,1)`)).toBeCloseTo(1, 15);
+      expect(num(`=T.DIST.2T(${x},12)`)).toBeCloseTo(2 * num(`=T.DIST.RT(${x},12)`), 15);
+    }
+  });
+});

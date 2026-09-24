@@ -76,6 +76,7 @@ export function ExcelSimulator() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLInputElement>(null);
   const cellInputRef = useRef<HTMLInputElement>(null);
+  const helpRef = useRef<HTMLDialogElement>(null);
   // Touch taps arrive as touchstart then a synthesized mousedown.
   const touched = useRef(false);
 
@@ -457,38 +458,70 @@ export function ExcelSimulator() {
           </table>
         </div>
 
-        <div
-          role="status"
-          className="min-h-7 border-t border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          {status}
+        <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+          <div role="status" className="min-h-5 min-w-0 py-0.5">
+            {status}
+          </div>
+          <button
+            type="button"
+            onClick={() => helpRef.current?.showModal()}
+            className="shrink-0 rounded-md border border-emerald-700 px-2.5 py-1 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-950"
+          >
+            Functions &amp; tips
+          </button>
         </div>
       </div>
 
-      <div className="mt-5 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
-        {FUNCTION_GROUPS.map(({ label, names }) => (
-          <p key={label} className="leading-relaxed">
-            <b className="font-semibold text-zinc-900 dark:text-zinc-50">{label}</b>{" "}
-            {names.map((fn) => (
-              <code
-                key={fn}
-                className="mr-1 inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-              >
-                {fn}
-              </code>
+      <dialog
+        ref={helpRef}
+        onClick={(e) => {
+          // A click on the dialog element itself (not its contents) is a
+          // click on the backdrop.
+          if (e.target === e.currentTarget) e.currentTarget.close();
+        }}
+        aria-labelledby="exsim-help-title"
+        className="m-auto w-[calc(100%-2rem)] max-w-2xl rounded-xl bg-white p-0 text-zinc-900 shadow-2xl backdrop:bg-black/50 dark:bg-zinc-900 dark:text-zinc-50"
+      >
+        <div className="flex max-h-[85vh] flex-col">
+          <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+            <h2 id="exsim-help-title" className="text-lg font-semibold">
+              Functions &amp; tips
+            </h2>
+            <button
+              type="button"
+              onClick={() => helpRef.current?.close()}
+              aria-label="Close"
+              className="rounded-md px-2 py-1 text-xl leading-none text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              ×
+            </button>
+          </div>
+          <div className="space-y-3 overflow-y-auto px-5 py-5 text-sm text-zinc-600 dark:text-zinc-400">
+            {FUNCTION_GROUPS.map(({ label, names }) => (
+              <p key={label} className="leading-relaxed">
+                <b className="font-semibold text-zinc-900 dark:text-zinc-50">{label}</b>{" "}
+                {names.map((fn) => (
+                  <code
+                    key={fn}
+                    className="mr-1 inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                  >
+                    {fn}
+                  </code>
+                ))}
+              </p>
             ))}
-          </p>
-        ))}
-        <p className="leading-relaxed">
-          Drag or Shift+click to select · Ctrl+C / X / V · Delete clears · Drag the green corner
-          square to fill · While typing a formula, click, drag, or use the arrow keys to insert cell
-          references, and press F4 to toggle{" "}
-          <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-            $A$1
-          </code>
-          . On a touch screen, tap a selected cell again to edit it.
-        </p>
-      </div>
+            <p className="leading-relaxed">
+              Drag or Shift+click to select · Ctrl+C / X / V · Delete clears · Drag the green
+              corner square to fill · While typing a formula, click, drag, or use the arrow keys to
+              insert cell references, and press F4 to toggle{" "}
+              <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+                $A$1
+              </code>
+              . On a touch screen, tap a selected cell again to edit it.
+            </p>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }
