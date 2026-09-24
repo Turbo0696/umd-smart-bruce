@@ -7,6 +7,7 @@
 // or leaves as `caret`, which the component applies to the active input.
 
 import {
+  COLS,
   type Cells,
   type FillDir,
   type Rect,
@@ -31,6 +32,8 @@ interface Pointing {
   end: number;
   anchor: Pos;
   cur: Pos;
+  /** Set when the reference is whole columns (A:C) or whole rows (2:5) rather than cells. */
+  span?: "col" | "row";
 }
 
 interface Clip {
@@ -106,6 +109,8 @@ export function pointingRect(pt: Pointing): Rect {
 
 function pointingText(pt: Pointing): string {
   const q = pointingRect(pt);
+  if (pt.span === "col") return COLS[q.c0] + ":" + COLS[q.c1];
+  if (pt.span === "row") return q.r0 + 1 + ":" + (q.r1 + 1);
   return q.c0 === q.c1 && q.r0 === q.r1
     ? cellKey(q.c0, q.r0)
     : cellKey(q.c0, q.r0) + ":" + cellKey(q.c1, q.r1);
@@ -128,6 +133,16 @@ function withText(s: SheetState, src: Src, text: string): SheetState {
 
 function withCaret(s: SheetState, src: Src, pos: number): SheetState {
   return { ...s, caret: { src, pos, id: (s.caret?.id ?? 0) + 1 } };
+}
+
+/** The text box a click on the grid would insert a reference into, if any. */
+export function pointSource(s: SheetState): Src | null {
+  return s.editing ? "cell" : s.barFocused ? "bar" : null;
+}
+
+/** The corner of a whole-column or whole-row reference that follows the pointer at (c, r). */
+function spanCur(span: "col" | "row", c: number, r: number): Pos {
+  return span === "col" ? [c, N - 1] : [N - 1, r];
 }
 
 /**
@@ -256,7 +271,8 @@ interface TextSel {
 
 export type Action =
   | { type: "mouseDownCell"; c: number; r: number; shift: boolean; touch: boolean; sel: TextSel }
-  | { type: "selectHeader"; header: "all" | { col: number } | { row: number } }
+  | { type: "selectHeader"; header: "all" | { col: number } | { row: number }; shift: boolean; sel: TextSel }
+  | { type: "hoverHeader"; header: { col: number } | { row: number } }
   | { type: "mouseDownFillHandle" }
   | { type: "hoverCell"; c: number; r: number }
   | { type: "mouseUp" }
@@ -281,14 +297,14 @@ export type Action =
 export function sheetReducer(s: SheetState, a: Action): SheetState {
   switch (a.type) {
     case "mouseDownCell": {
-      const src: Src | null = s.editing ? "cell" : s.barFocused ? "bar" : null;
+      const src = pointSource(s);
       if (src && canPoint(s, src, a.sel.start)) {
         const at: Pos = [a.c, a.r];
         const pt: Pointing =
-          s.pt && a.shift
+          s.pt && a.shift && !s.pt.span
             ? { ...s.pt, cur: at }
             : s.pt
-              ? { ...s.pt, anchor: at, cur: at }
+              ? { ...s.pt, anchor: at, cur: at, span: undefined }
               : { src, start: a.sel.start, end: a.sel.end, anchor: at, cur: at };
         return applyPointing({ ...s, drag: { kind: "point" } }, pt);
       }
@@ -310,8 +326,22 @@ export function sheetReducer(s: SheetState, a: Action): SheetState {
     }
 
     case "selectHeader": {
-      const base = commit(s, true);
       const h = a.header;
+      const src = pointSource(s);
+      // While typing a formula, a header inserts a whole column (A:A) or row (2:2).
+      if (h !== "all" && src && canPoint(s, src, a.sel.start)) {
+        const span = "col" in h ? "col" : "row";
+        const first: Pos = "col" in h ? [h.col, 0] : [0, h.row];
+        const last = spanCur(span, first[0], first[1]);
+        const pt: Pointing =
+          s.pt && s.pt.span === span && a.shift
+            ? { ...s.pt, cur: last }
+            : s.pt
+              ? { ...s.pt, span, anchor: first, cur: last }
+              : { src, start: a.sel.start, end: a.sel.end, span, anchor: first, cur: last };
+        return applyPointing({ ...s, drag: { kind: "point" } }, pt);
+      }
+      const base = commit(s, true);
       if (h === "all") return { ...base, anchor: [0, 0], cur: [N - 1, N - 1] };
       if ("col" in h) return { ...base, anchor: [h.col, 0], cur: [h.col, N - 1] };
       return { ...base, anchor: [0, h.row], cur: [N - 1, h.row] };
@@ -330,13 +360,23 @@ export function sheetReducer(s: SheetState, a: Action): SheetState {
       const d = s.drag;
       if (!d) return s;
       if (d.kind === "point") {
-        return s.pt ? applyPointing(s, { ...s.pt, cur: [a.c, a.r] }) : s;
+        if (!s.pt) return s;
+        const cur: Pos = s.pt.span ? spanCur(s.pt.span, a.c, a.r) : [a.c, a.r];
+        return applyPointing(s, { ...s.pt, cur });
       }
       if (d.kind === "fill") {
         return { ...s, drag: { ...d, ...fillPreview(d.src, a.c, a.r) } };
       }
       if (a.c === s.cur[0] && a.r === s.cur[1]) return s;
       return { ...s, cur: [a.c, a.r] };
+    }
+
+    case "hoverHeader": {
+      // Dragging across headers grows a whole-column / whole-row reference of the same kind.
+      const span = "col" in a.header ? "col" : "row";
+      if (s.drag?.kind !== "point" || !s.pt || s.pt.span !== span) return s;
+      const cur = "col" in a.header ? spanCur("col", a.header.col, 0) : spanCur("row", 0, a.header.row);
+      return applyPointing(s, { ...s.pt, cur });
     }
 
     case "mouseUp": {
@@ -405,6 +445,16 @@ export function sheetReducer(s: SheetState, a: Action): SheetState {
       if (!pt) {
         const at: Pos = a.src === "cell" ? parseKey(s.editing!.key) : s.cur;
         pt = { src: a.src, start: a.sel.start, end: a.sel.end, anchor: at, cur: at };
+      }
+      // A whole-column reference only moves sideways and a whole-row one only up and down.
+      if ((pt.span === "col" && a.dc === 0) || (pt.span === "row" && a.dr === 0)) return s;
+      if (pt.span === "col") {
+        const c = clamp(pt.cur[0] + a.dc);
+        return applyPointing(s, { ...pt, cur: [c, N - 1], anchor: a.shift ? pt.anchor : [c, 0] });
+      }
+      if (pt.span === "row") {
+        const r = clamp(pt.cur[1] + a.dr);
+        return applyPointing(s, { ...pt, cur: [N - 1, r], anchor: a.shift ? pt.anchor : [0, r] });
       }
       const cur: Pos = [clamp(pt.cur[0] + a.dc), clamp(pt.cur[1] + a.dr)];
       return applyPointing(s, { ...pt, cur, anchor: a.shift ? pt.anchor : cur });

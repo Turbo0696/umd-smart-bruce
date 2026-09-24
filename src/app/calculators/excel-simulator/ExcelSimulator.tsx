@@ -24,6 +24,7 @@ import {
   gridKeyAction,
   inRect,
   initialState,
+  pointSource,
   pointingRect,
   selRect,
   selectionText,
@@ -66,10 +67,10 @@ const COL_W = 88;
 
 const HEADER =
   "border border-zinc-300 bg-zinc-100 text-xs font-medium text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400";
-const HEADER_ACTIVE = "bg-emerald-100! font-bold text-emerald-800 dark:bg-emerald-950! dark:text-emerald-300";
+const HEADER_ACTIVE = "bg-[#FFCB05]/40! font-bold text-[#00274C] dark:bg-[#FFCB05]/20! dark:text-[#FFCB05]";
 
 const TOOL_BUTTON =
-  "rounded-md border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-900 hover:border-zinc-500 active:bg-emerald-700 active:text-white dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50";
+  "rounded-md border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-900 hover:border-zinc-500 active:bg-[#00274C] active:text-white dark:border-zinc-700 dark:active:bg-[#FFCB05] dark:active:text-[#00274C] dark:bg-zinc-800 dark:text-zinc-50";
 
 export function ExcelSimulator() {
   const [s, dispatch] = useReducer(sheetReducer, undefined, () => initialState());
@@ -184,17 +185,24 @@ export function ExcelSimulator() {
     }
   }
 
+  /**
+   * A click while typing a formula inserts a reference and must leave focus where it is;
+   * anything else moves focus back to the grid. Returns the caret range of the text box being
+   * typed in, and whether this click would insert a reference.
+   */
+  function pointingContext() {
+    const src: Src | null = pointSource(s);
+    const input = src === "cell" ? cellInputRef.current : src === "bar" ? barRef.current : null;
+    const range = textSel(input);
+    return { range, pointing: src !== null && canPoint(s, src, range.start) };
+  }
+
   function onCellMouseDown(e: ReactMouseEvent, c: number, r: number) {
     if (isInput(e.target) || e.button !== 0) return;
     e.preventDefault();
     const touch = touched.current;
     touched.current = false;
-    // A click while typing a formula inserts a reference and must leave focus
-    // where it is; anything else moves focus back to the grid.
-    const src: Src | null = s.editing ? "cell" : s.barFocused ? "bar" : null;
-    const input = src === "cell" ? cellInputRef.current : src === "bar" ? barRef.current : null;
-    const range = textSel(input);
-    const pointing = src !== null && canPoint(s, src, range.start);
+    const { range, pointing } = pointingContext();
     dispatch({ type: "mouseDownCell", c, r, shift: e.shiftKey, touch, sel: range });
     if (!pointing) focusGrid();
   }
@@ -203,8 +211,10 @@ export function ExcelSimulator() {
     if (e.button !== 0) return;
     e.preventDefault();
     touched.current = false;
-    dispatch({ type: "selectHeader", header });
-    focusGrid();
+    // While typing a formula a column or row header inserts A:A or 2:2; otherwise it selects.
+    const { range, pointing } = pointingContext();
+    dispatch({ type: "selectHeader", header, shift: e.shiftKey, sel: range });
+    if (header === "all" || !pointing) focusGrid();
   }
 
   function onHandleMouseDown(e: ReactMouseEvent) {
@@ -245,7 +255,7 @@ export function ExcelSimulator() {
           filling ? "[&_td]:cursor-crosshair" : ""
         }`}
       >
-        <div className="bg-emerald-700 px-3 py-2 font-semibold text-white">Sheet1</div>
+        <div className="bg-[#00274C] px-3 py-2 font-semibold text-[#FFCB05]">Sheet1</div>
 
         <div className="flex items-center gap-1.5 border-b border-zinc-200 bg-white p-1.5 dark:border-zinc-800 dark:bg-zinc-900">
           <input
@@ -268,7 +278,7 @@ export function ExcelSimulator() {
             onBlur={() => dispatch({ type: "barBlur" })}
             onMouseDown={() => dispatch({ type: "clearPointing" })}
             onKeyDown={onBarKeyDown}
-            className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 focus:outline-2 focus:-outline-offset-1 focus:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 focus:outline-2 focus:-outline-offset-1 focus:outline-[#00274C] dark:border-zinc-700 dark:focus:outline-[#FFCB05] dark:bg-zinc-900 dark:text-zinc-50"
           />
         </div>
 
@@ -305,7 +315,7 @@ export function ExcelSimulator() {
           onTouchStart={() => {
             touched.current = true;
           }}
-          className="relative max-w-full overflow-auto bg-white pr-1.5 pb-1.5 outline-none select-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-inset dark:bg-zinc-900"
+          className="relative max-w-full overflow-auto bg-white pr-1.5 pb-1.5 outline-none select-none focus-visible:ring-2 focus-visible:ring-[#00274C] focus-visible:ring-inset dark:focus-visible:ring-[#FFCB05] dark:bg-zinc-900"
         >
           <table
             role="grid"
@@ -332,6 +342,7 @@ export function ExcelSimulator() {
                     key={c}
                     scope="col"
                     onMouseDown={(e) => onHeaderMouseDown(e, { col: i })}
+                    onMouseOver={() => s.drag && dispatch({ type: "hoverHeader", header: { col: i } })}
                     className={`sticky top-0 z-10 h-6 cursor-pointer ${HEADER} ${
                       i >= sel.c0 && i <= sel.c1 ? HEADER_ACTIVE : ""
                     }`}
@@ -347,6 +358,7 @@ export function ExcelSimulator() {
                   <th
                     scope="row"
                     onMouseDown={(e) => onHeaderMouseDown(e, { row: r })}
+                    onMouseOver={() => s.drag && dispatch({ type: "hoverHeader", header: { row: r } })}
                     className={`sticky left-0 z-[5] cursor-pointer ${HEADER} ${
                       r >= sel.r0 && r <= sel.r1 ? HEADER_ACTIVE : ""
                     }`}
@@ -362,18 +374,18 @@ export function ExcelSimulator() {
                     const showHandle = !s.editing && c === sel.c1 && r === sel.r1;
 
                     const outline = inRect(c, r, ptRect)
-                      ? "outline-2 -outline-offset-2 outline-dashed outline-emerald-600 dark:outline-emerald-400"
+                      ? "outline-2 -outline-offset-2 outline-dashed outline-[#00274C] dark:outline-[#FFCB05]"
                       : inRect(c, r, fillRect)
                         ? "outline-1 -outline-offset-2 outline-dashed outline-zinc-900 dark:outline-zinc-100"
                         : isCur
-                          ? "outline-2 -outline-offset-2 outline-emerald-700 dark:outline-emerald-400"
+                          ? "outline-2 -outline-offset-2 outline-[#00274C] dark:outline-[#FFCB05]"
                           : inRect(c, r, s.copied)
-                            ? "outline-1 -outline-offset-2 outline-dashed outline-emerald-700 dark:outline-emerald-400"
+                            ? "outline-1 -outline-offset-2 outline-dashed outline-[#00274C] dark:outline-[#FFCB05]"
                             : "";
                     const bg = inRect(c, r, ptRect)
-                      ? "bg-emerald-100 dark:bg-emerald-950"
+                      ? "bg-[#FFCB05]/25 dark:bg-[#FFCB05]/15"
                       : inSel && !isCur
-                        ? "bg-emerald-50 dark:bg-emerald-950/60"
+                        ? "bg-[#00274C]/10 dark:bg-[#FFCB05]/10"
                         : "";
                     const align =
                       res.kind === "number"
@@ -415,7 +427,7 @@ export function ExcelSimulator() {
                           <div
                             title="Drag to fill"
                             onMouseDown={onHandleMouseDown}
-                            className="absolute -right-[5px] -bottom-[5px] z-[4] h-[9px] w-[9px] cursor-crosshair border border-white bg-emerald-700 dark:border-zinc-900 dark:bg-emerald-400"
+                            className="absolute -right-[5px] -bottom-[5px] z-[4] h-[9px] w-[9px] cursor-crosshair border border-white bg-[#00274C] dark:border-zinc-900 dark:bg-[#FFCB05]"
                           />
                         )}
                       </td>
@@ -462,7 +474,7 @@ export function ExcelSimulator() {
           <button
             type="button"
             onClick={() => helpRef.current?.showModal()}
-            className="ml-auto shrink-0 rounded-md border border-emerald-700 px-2.5 py-1 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-950"
+            className="ml-auto shrink-0 rounded-md border border-[#00274C] px-2.5 py-1 font-medium text-[#00274C] hover:bg-[#00274C]/10 dark:border-[#FFCB05] dark:text-[#FFCB05] dark:hover:bg-[#FFCB05]/10"
           >
             Functions &amp; tips
           </button>
@@ -508,9 +520,10 @@ export function ExcelSimulator() {
               </p>
             ))}
             <p className="leading-relaxed">
-              Drag or Shift+click to select · Ctrl+C / X / V · Delete clears · Drag the green
+              Drag or Shift+click to select · Ctrl+C / X / V · Delete clears · Drag the small
               corner square to fill · While typing a formula, click, drag, or use the arrow keys to
-              insert cell references, and press F4 to toggle{" "}
+              insert cell references (click a column or row header for a whole column or row, such
+              as A:A or 2:2), and press F4 to toggle{" "}
               <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
                 $A$1
               </code>
