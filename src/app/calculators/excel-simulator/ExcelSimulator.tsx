@@ -69,7 +69,7 @@ const HEADER =
 const HEADER_ACTIVE = "bg-emerald-100! font-bold text-emerald-800 dark:bg-emerald-950! dark:text-emerald-300";
 
 const TOOL_BUTTON =
-  "rounded-md border border-zinc-300 bg-zinc-50 px-3 py-1 text-sm text-zinc-900 hover:border-zinc-500 active:bg-emerald-700 active:text-white dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50";
+  "rounded-md border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-900 hover:border-zinc-500 active:bg-emerald-700 active:text-white dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50";
 
 export function ExcelSimulator() {
   const [s, dispatch] = useReducer(sheetReducer, undefined, () => initialState());
@@ -112,7 +112,7 @@ export function ExcelSimulator() {
   const fillRect = s.drag?.kind === "fill" ? s.drag.preview : null;
   const filling = s.drag?.kind === "fill";
 
-  let status = "Ready";
+  let status = "";
   if (multi) {
     let count = 0;
     const nums: number[] = [];
@@ -245,38 +245,7 @@ export function ExcelSimulator() {
           filling ? "[&_td]:cursor-crosshair" : ""
         }`}
       >
-        <div className="flex items-center justify-between bg-emerald-700 px-3 py-2 font-semibold text-white">
-          <span>Sheet1</span>
-          <small className="font-normal opacity-85">10 × 10</small>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5 border-b border-zinc-200 bg-white p-1.5 dark:border-zinc-800 dark:bg-zinc-900">
-          <button
-            type="button"
-            className={TOOL_BUTTON}
-            onClick={() => {
-              tryWrite(selectionText(s));
-              dispatch({ type: "copy", cut: false });
-              focusGrid();
-            }}
-          >
-            Copy
-          </button>
-          <button
-            type="button"
-            className={TOOL_BUTTON}
-            onClick={() => {
-              tryWrite(selectionText(s));
-              dispatch({ type: "copy", cut: true });
-              focusGrid();
-            }}
-          >
-            Cut
-          </button>
-          <button type="button" className={TOOL_BUTTON} onClick={onPasteButton}>
-            Paste
-          </button>
-        </div>
+        <div className="bg-emerald-700 px-3 py-2 font-semibold text-white">Sheet1</div>
 
         <div className="flex items-center gap-1.5 border-b border-zinc-200 bg-white p-1.5 dark:border-zinc-800 dark:bg-zinc-900">
           <input
@@ -458,14 +427,42 @@ export function ExcelSimulator() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-          <div role="status" className="min-h-5 min-w-0 py-0.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              className={TOOL_BUTTON}
+              onClick={() => {
+                tryWrite(selectionText(s));
+                dispatch({ type: "copy", cut: false });
+                focusGrid();
+              }}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              className={TOOL_BUTTON}
+              onClick={() => {
+                tryWrite(selectionText(s));
+                dispatch({ type: "copy", cut: true });
+                focusGrid();
+              }}
+            >
+              Cut
+            </button>
+            <button type="button" className={TOOL_BUTTON} onClick={onPasteButton}>
+              Paste
+            </button>
+          </div>
+          {/* Sum, average, etc. of a multi-cell selection; empty otherwise. */}
+          <div role="status" className="order-last w-full min-w-0 empty:hidden sm:order-none sm:w-auto">
             {status}
           </div>
           <button
             type="button"
             onClick={() => helpRef.current?.showModal()}
-            className="shrink-0 rounded-md border border-emerald-700 px-2.5 py-1 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-950"
+            className="ml-auto shrink-0 rounded-md border border-emerald-700 px-2.5 py-1 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-950"
           >
             Functions &amp; tips
           </button>
