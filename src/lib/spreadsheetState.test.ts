@@ -6,6 +6,7 @@ import {
   canPoint,
   gridKeyAction,
   initialState,
+  pointingRect,
   selRect,
   selectionText,
   sheetReducer,
@@ -41,11 +42,11 @@ describe("selection and navigation", () => {
   it("shift-click extends and header clicks select a whole column, row, or sheet", () => {
     let s = run(blank(), at(1, 1), { type: "mouseUp" }, click(3, 4, 0, true));
     expect(selRect(s)).toEqual({ c0: 1, c1: 3, r0: 1, r1: 4 });
-    s = run(s, { type: "selectHeader", header: { col: 2 } });
+    s = run(s, { type: "selectHeader", header: { col: 2 }, shift: false, sel: { start: 0, end: 0 } });
     expect(selRect(s)).toEqual({ c0: 2, c1: 2, r0: 0, r1: 9 });
-    s = run(s, { type: "selectHeader", header: { row: 4 } });
+    s = run(s, { type: "selectHeader", header: { row: 4 }, shift: false, sel: { start: 0, end: 0 } });
     expect(selRect(s)).toEqual({ c0: 0, c1: 9, r0: 4, r1: 4 });
-    s = run(s, { type: "selectHeader", header: "all" });
+    s = run(s, { type: "selectHeader", header: "all", shift: false, sel: { start: 0, end: 0 } });
     expect(selRect(s)).toEqual({ c0: 0, c1: 9, r0: 0, r1: 9 });
   });
 });
@@ -289,5 +290,78 @@ describe("initial state", () => {
     expect(s.cells).toEqual({});
     expect(s.cur).toEqual([0, 0]);
     expect(barText(s)).toBe("");
+  });
+});
+
+describe("whole columns and rows while typing a formula", () => {
+  const hdr = (header: "all" | { col: number } | { row: number }, start: number, shift = false): Action => ({
+    type: "selectHeader",
+    header,
+    shift,
+    sel: { start, end: start },
+  });
+  const text = (s: SheetState) => s.editing!.text;
+
+  it("a column or row header inserts A:A or 2:2, and the next click replaces it", () => {
+    let s = run(blank(), { type: "startEdit", init: "=SUM(" }, hdr({ col: 1 }, 5));
+    expect(text(s)).toBe("=SUM(B:B");
+    expect(pointingRect(s.pt!)).toEqual({ c0: 1, c1: 1, r0: 0, r1: 9 }); // the whole column is highlighted
+    expect(s.cur).toEqual([0, 0]); // selection stays on the cell being edited
+    s = run(s, { type: "mouseUp" }, hdr({ row: 2 }, 5));
+    expect(text(s)).toBe("=SUM(3:3");
+    expect(pointingRect(s.pt!)).toEqual({ c0: 0, c1: 9, r0: 2, r1: 2 });
+  });
+
+  it("dragging across headers, or over cells, grows the reference", () => {
+    let s = run(blank(), { type: "startEdit", init: "=SUM(" }, hdr({ col: 1 }, 5), { type: "hoverHeader", header: { col: 3 } });
+    expect(text(s)).toBe("=SUM(B:D");
+    s = run(s, { type: "hoverHeader", header: { col: 0 } });
+    expect(text(s)).toBe("=SUM(A:B");
+    s = run(s, { type: "hoverCell", c: 2, r: 5 });
+    expect(text(s)).toBe("=SUM(B:C");
+    s = run(s, { type: "hoverHeader", header: { row: 4 } }); // a row header doesn't extend a column reference
+    expect(text(s)).toBe("=SUM(B:C");
+    s = run(s, { type: "mouseUp" }, { type: "hoverHeader", header: { col: 8 } });
+    expect(text(s)).toBe("=SUM(B:C"); // released: no more growing
+  });
+
+  it("dragging down the row headers gives a row range", () => {
+    const s = run(blank(), { type: "startEdit", init: "=SUM(" }, hdr({ row: 1 }, 5), { type: "hoverHeader", header: { row: 4 } });
+    expect(text(s)).toBe("=SUM(2:5");
+  });
+
+  it("shift-click extends from the first header", () => {
+    const s = run(blank(), { type: "startEdit", init: "=SUM(" }, hdr({ col: 1 }, 5), { type: "mouseUp" }, hdr({ col: 3 }, 5, true));
+    expect(text(s)).toBe("=SUM(B:D");
+  });
+
+  it("arrow keys move a column reference sideways and ignore up and down", () => {
+    let s = run(blank(), { type: "startEdit", init: "=SUM(" }, hdr({ col: 1 }, 5), { type: "mouseUp" });
+    const key = (dc: number, dr: number, shift = false): Action => ({ type: "pointKey", src: "cell", dc, dr, shift, sel: { start: 5, end: 5 } });
+    s = run(s, key(1, 0));
+    expect(text(s)).toBe("=SUM(C:C");
+    s = run(s, key(1, 0, true));
+    expect(text(s)).toBe("=SUM(C:D");
+    s = run(s, key(0, 1));
+    expect(text(s)).toBe("=SUM(C:D");
+  });
+
+  it("clicking a cell afterwards goes back to a cell reference", () => {
+    const s = run(blank(), { type: "startEdit", init: "=SUM(" }, hdr({ col: 1 }, 5), { type: "mouseUp" }, click(2, 2, 5));
+    expect(text(s)).toBe("=SUM(C3");
+    expect(s.pt!.span).toBeUndefined();
+  });
+
+  it("works from the formula bar too", () => {
+    const s = run(blank(), { type: "barFocus" }, { type: "barInput", text: "=SUM(" }, hdr({ row: 0 }, 5));
+    expect(s.cells.A1).toBe("=SUM(1:1");
+  });
+
+  it("outside a formula, or where a reference can't go, a header still selects", () => {
+    let s = run(blank(), { type: "startEdit", init: "=SUM" }, hdr({ col: 2 }, 4));
+    expect(s.cells.A1).toBe("=SUM"); // committed, not extended
+    expect(selRect(s)).toEqual({ c0: 2, c1: 2, r0: 0, r1: 9 });
+    s = run(blank(), hdr({ row: 3 }, 0));
+    expect(selRect(s)).toEqual({ c0: 0, c1: 9, r0: 3, r1: 3 });
   });
 });

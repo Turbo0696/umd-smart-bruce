@@ -429,6 +429,8 @@ type Token =
 const NUM_RE = /^(?:\d+\.?\d*|\.\d+)(?:E[+-]?\d+)?/;
 const WORD_RE = /^[$A-Z_][$A-Z0-9_.]*/;
 const CELL_RE = /^\$?([A-J])\$?(10|[1-9])$/;
+const COL_ONLY_RE = /^\$?([A-J])$/;
+const ROW_ONLY_RE = /^\$?(10|[1-9])$/;
 
 function tokenize(src: string): Token[] {
   const out: Token[] = [];
@@ -474,7 +476,8 @@ type Lookup = (k: string) => number | string;
  *   postfix := primary "%"*
  *   primary := number | "(" expr ")" | NAME "(" [arg ("," arg)*] ")"
  *            | cell | TRUE | FALSE
- *   arg     := cell ":" cell | cell (on its own) | expr
+ *   arg     := cell ":" cell | column ":" column | row ":" row | cell (on its own) | expr
+ * (A:A, $B:D and 2:2, 1:$5 are whole columns and rows.)
  * A range is only valid as a function argument.
  */
 function evalFormula(formula: string, lookup: Lookup): number {
@@ -501,19 +504,33 @@ function evalFormula(formula: string, lookup: Lookup): number {
     return v;
   };
 
-  const range = (a: string, b: string): Arg[] => {
-    const m1 = CELL_RE.exec(a);
-    const m2 = CELL_RE.exec(b);
-    if (!m1 || !m2) return fail("#NAME?");
-    const c1 = COLS.indexOf(m1[1]);
-    const c2 = COLS.indexOf(m2[1]);
-    const r1 = Number(m1[2]);
-    const r2 = Number(m2[2]);
+  /** The cells in columns c1..c2 (0-based) and rows r1..r2 (1-based), row by row. */
+  const block = (c1: number, c2: number, r1: number, r2: number): Arg[] => {
     const out: Arg[] = [];
     for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
       for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) out.push(lookup(COLS[c] + r));
     }
     return out;
+  };
+
+  const range = (a: string, b: string): Arg[] => {
+    const m1 = CELL_RE.exec(a);
+    const m2 = CELL_RE.exec(b);
+    if (!m1 || !m2) return fail("#NAME?");
+    return block(COLS.indexOf(m1[1]), COLS.indexOf(m2[1]), Number(m1[2]), Number(m2[2]));
+  };
+
+  /** Column index of a whole-column endpoint such as A or $B, else -1. */
+  const colIndex = (t: Token | undefined): number => {
+    const m = t?.t === "word" ? COL_ONLY_RE.exec(t.v) : null;
+    return m ? COLS.indexOf(m[1]) : -1;
+  };
+
+  /** Row number of a whole-row endpoint such as 2 or $2, else -1. */
+  const rowNumber = (t: Token | undefined): number => {
+    if (t?.t === "num") return Number.isInteger(t.v) && t.v >= 1 && t.v <= N ? t.v : -1;
+    const m = t?.t === "word" ? ROW_ONLY_RE.exec(t.v) : null;
+    return m ? Number(m[1]) : -1;
   };
 
   const arg = (): Arg => {
@@ -529,6 +546,21 @@ function evalFormula(formula: string, lookup: Lookup): number {
     ) {
       pos += 3;
       return range(t.v, end.v);
+    }
+    // Whole columns (A:A, $A:C) and whole rows (2:2, 1:$5).
+    if (colon?.t === "op" && colon.v === ":") {
+      const c1 = colIndex(t);
+      const c2 = colIndex(end);
+      if (c1 >= 0 && c2 >= 0) {
+        pos += 3;
+        return block(c1, c2, 1, N);
+      }
+      const r1 = rowNumber(t);
+      const r2 = rowNumber(end);
+      if (r1 > 0 && r2 > 0) {
+        pos += 3;
+        return block(0, N - 1, r1, r2);
+      }
     }
     // A cell on its own is passed as a reference, so SUM / AVERAGE / COUNT skip it if blank or text.
     if (t?.t === "word" && CELL_RE.test(t.v) && colon?.t === "op" && (colon.v === "," || colon.v === ")")) {
@@ -565,6 +597,7 @@ function evalFormula(formula: string, lookup: Lookup): number {
     }
     if (t.v === "TRUE") return 1;
     if (t.v === "FALSE") return 0;
+    if (colIndex(t) >= 0 && isOp(":")) return fail("#VALUE!");
     return cellValue(t.v);
   };
 
@@ -696,13 +729,29 @@ export function evaluateSheet(cells: Cells): Record<string, CellResult> {
 /* ---------- copy / fill / F4 helpers ---------- */
 
 const REF_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)([A-J])(\$?)(10|[1-9])(?![A-Za-z0-9_.])/gi;
+// Whole-column (A:C) and whole-row (2:5) references.
+const COL_SPAN_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)([A-J]):(\$?)([A-J])(?![A-Za-z0-9_.(])/gi;
+const ROW_SPAN_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)(10|[1-9]):(\$?)(10|[1-9])(?![A-Za-z0-9_.])/g;
 
 /**
  * Moves the relative references in a formula by (dc, dr), the way copying a
  * formula does. References pushed off the sheet become #REF!.
  */
 export function shiftFormula(f: string, dc: number, dr: number): string {
-  return f.replace(REF_IN_FORMULA, (_m, pre: string, d1: string, a: string, d2: string, b: string) => {
+  const shifted = f
+    .replace(COL_SPAN_IN_FORMULA, (_m, pre: string, d1: string, a: string, d2: string, b: string) => {
+      const c1 = COLS.indexOf(a.toUpperCase()) + (d1 ? 0 : dc);
+      const c2 = COLS.indexOf(b.toUpperCase()) + (d2 ? 0 : dc);
+      if (c1 < 0 || c1 >= N || c2 < 0 || c2 >= N) return pre + "#REF!";
+      return pre + d1 + COLS[c1] + ":" + d2 + COLS[c2];
+    })
+    .replace(ROW_SPAN_IN_FORMULA, (_m, pre: string, d1: string, a: string, d2: string, b: string) => {
+      const r1 = Number(a) + (d1 ? 0 : dr);
+      const r2 = Number(b) + (d2 ? 0 : dr);
+      if (r1 < 1 || r1 > N || r2 < 1 || r2 > N) return pre + "#REF!";
+      return pre + d1 + r1 + ":" + d2 + r2;
+    });
+  return shifted.replace(REF_IN_FORMULA, (_m, pre: string, d1: string, a: string, d2: string, b: string) => {
     let c = COLS.indexOf(a.toUpperCase());
     let r = Number(b);
     if (!d1) c += dc;
@@ -754,6 +803,8 @@ export function fillRange(cells: Cells, src: Rect, dir: FillDir, n: number): Cel
   return out;
 }
 
+const COL_SPAN_TOKEN = /(^|[^A-Za-z0-9_.$])(\$?[A-J]:\$?[A-J])(?![A-Za-z0-9_.(])/gi;
+const ROW_SPAN_TOKEN = /(^|[^A-Za-z0-9_.$])(\$?(?:10|[1-9]):\$?(?:10|[1-9]))(?![A-Za-z0-9_.(])/gi;
 const REF_TOKEN =
   /(^|[^A-Za-z0-9_.$])(\$?[A-J]\$?(?:10|[1-9])(?::\$?[A-J]\$?(?:10|[1-9]))?)(?![A-Za-z0-9_.(])/gi;
 
@@ -762,6 +813,19 @@ const REF_TOKEN =
  * Returns null when the caret isn't on a reference.
  */
 export function cycleAbsolute(text: string, caret: number): { text: string; caret: number } | null {
+  // Whole columns and rows just toggle between A:A and $A:$A.
+  for (const spanRe of [COL_SPAN_TOKEN, ROW_SPAN_TOKEN]) {
+    const sre = new RegExp(spanRe.source, "gi");
+    let sm: RegExpExecArray | null;
+    while ((sm = sre.exec(text))) {
+      const start = sm.index + sm[1].length;
+      const end = start + sm[2].length;
+      if (caret < start || caret > end) continue;
+      const bare = sm[2].replace(/\$/g, "");
+      const next = sm[2].includes("$") ? bare : bare.split(":").map((part) => "$" + part).join(":");
+      return { text: text.slice(0, start) + next + text.slice(end), caret: start + next.length };
+    }
+  }
   const re = new RegExp(REF_TOKEN.source, "gi");
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {

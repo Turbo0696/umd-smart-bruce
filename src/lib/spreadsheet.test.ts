@@ -412,3 +412,51 @@ describe("round trips", () => {
     }
   });
 });
+
+describe("whole columns and rows", () => {
+  const data = { B1: "1", B2: "2", B3: "x", B5: "4", C1: "10", C2: "30", D1: "20" };
+
+  it("A:A and 2:2 cover the whole column or row, skipping blanks and text", () => {
+    expect(num("=SUM(B:B)", data)).toBe(7);
+    expect(num("=SUM(B:C)", data)).toBe(47);
+    expect(num("=SUM(C:B)", data)).toBe(47); // either order
+    expect(num("=SUM(2:2)", data)).toBe(32);
+    expect(num("=SUM(2:3)", data)).toBe(32);
+    expect(num("=COUNT(B:D)", data)).toBe(6);
+    expect(num("=AVERAGE($B:$B)", data)).toBeCloseTo(7 / 3, 14);
+    expect(num("=MAX(2:$5)", data)).toBe(30);
+    expect(num("=CORREL(B:B,C:C)", data)).toBeCloseTo(1, 14); // pairs where both cells are numbers
+  });
+
+  it("a whole column that contains the formula's own cell is circular, as in Excel", () => {
+    expect(show("=SUM(A:A)")).toBe("#CIRC!");
+    expect(show("=SUM(1:1)")).toBe("#CIRC!");
+  });
+
+  it("rejects things that aren't columns or rows of this sheet", () => {
+    expect(show("=SUM(K:K)")).toBe("#NAME?");
+    expect(show("=SUM(11:11)")).toBe("#ERR!");
+    expect(show("=B:B", data)).toBe("#VALUE!"); // a range isn't a single value
+    expect(show("=2:2", data)).toBe("#VALUE!");
+  });
+
+  it("shifts like other references when copied or filled", () => {
+    expect(shiftFormula("=SUM(B:B)", 1, 0)).toBe("=SUM(C:C)");
+    expect(shiftFormula("=SUM($B:B)", 1, 3)).toBe("=SUM($B:C)");
+    expect(shiftFormula("=SUM(A:A)", -1, 0)).toBe("=SUM(#REF!)");
+    expect(shiftFormula("=SUM(2:3)", 4, 1)).toBe("=SUM(3:4)");
+    expect(shiftFormula("=SUM($2:3)", 0, 1)).toBe("=SUM($2:4)");
+    expect(shiftFormula("=SUM(9:10)", 0, 1)).toBe("=SUM(#REF!)");
+    expect(shiftFormula("=SUM(A:A)/A1", 1, 1)).toBe("=SUM(B:B)/B2");
+    expect(shiftFormula("=SUM(A1:B2)", 1, 1)).toBe("=SUM(B2:C3)"); // cell ranges are unaffected
+    const out = fillRange({ A9: "=SUM(A:A)" }, { c0: 0, c1: 0, r0: 8, r1: 8 }, "r", 2);
+    expect([out.B9, out.C9]).toEqual(["=SUM(B:B)", "=SUM(C:C)"]);
+  });
+
+  it("F4 toggles between A:A and $A:$A", () => {
+    expect(cycleAbsolute("=SUM(A:A)", 7)).toEqual({ text: "=SUM($A:$A)", caret: 10 });
+    expect(cycleAbsolute("=SUM($A:$C)", 7)).toEqual({ text: "=SUM(A:C)", caret: 8 });
+    expect(cycleAbsolute("=SUM(2:3)", 7)).toEqual({ text: "=SUM($2:$3)", caret: 10 });
+    expect(cycleAbsolute("=SUM(A:A)", 3)).toBeNull();
+  });
+});
