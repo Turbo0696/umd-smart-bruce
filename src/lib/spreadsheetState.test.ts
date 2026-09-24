@@ -282,3 +282,12 @@ describe("gridKeyAction", () => {
 function selectionTextOf(s: SheetState): string {
   return s.clip!.text;
 }
+
+describe("initial state", () => {
+  it("starts blank, with A1 selected, since the calculator is used in exams", () => {
+    const s = initialState();
+    expect(s.cells).toEqual({});
+    expect(s.cur).toEqual([0, 0]);
+    expect(barText(s)).toBe("");
+  });
+});

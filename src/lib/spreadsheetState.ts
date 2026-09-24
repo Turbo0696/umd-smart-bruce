@@ -62,27 +62,8 @@ export interface SheetState {
   caret: { src: Src; pos: number; id: number } | null;
 }
 
-export const SEED: Cells = {
-  A1: "Item", B1: "Qty", C1: "Price", D1: "Total",
-  A2: "Widget", B2: "4", C2: "2.5", D2: "=B2*C2",
-  A3: "Gadget", B3: "10", C3: "1.2", D3: "=B3*C3",
-  A4: "Gizmo", B4: "3", C4: "9.99", D4: "=B4*C4",
-  A5: "Sum", B5: "=SUM(B2:B4)", D5: "=SUM(D2:D4)",
-  A6: "Average", D6: "=AVERAGE(D2:D4)",
-  A7: "Max", D7: "=MAX(D2:D4)",
-  A8: "Min", D8: "=MIN(D2:D4)",
-  F1: "Stat", G1: "Value",
-  F2: "NORM.INV", G2: "=NORM.INV(0.975,0,1)",
-  F3: "T.INV.2T", G3: "=T.INV.2T(0.05,10)",
-  F4: "T.DIST", G4: "=T.DIST(2.228,10,1)",
-  F5: "T.DIST.2T", G5: "=T.DIST.2T(2.228,10)",
-  F6: "STDEV.S", G6: "=STDEV.S(D2:D4)",
-  F7: "CHISQ.INV.RT", G7: "=CHISQ.INV.RT(0.05,3)",
-  F8: "F.INV.RT", G8: "=F.INV.RT(0.05,3,10)",
-  F9: "BINOM.DIST", G9: "=BINOM.DIST(3,10,0.5,1)",
-};
-
-export function initialState(cells: Cells = SEED): SheetState {
+/** A blank sheet: this is used for exams, so nothing is pre-filled. */
+export function initialState(cells: Cells = {}): SheetState {
   return {
     cells,
     anchor: [0, 0],
