@@ -289,12 +289,12 @@ export function SpreadsheetIcon({ className = "" }: IconProps) {
     <div className={`${BADGE} ${className}`}>
       <svg width={40} height={40} viewBox="0 0 40 40" role="img" aria-hidden="true">
         <rect x="5" y="6" width="30" height="28" rx="2.5" className="fill-white stroke-zinc-300 dark:fill-zinc-900 dark:stroke-zinc-600" strokeWidth={1.2} />
-        <path d="M 7.5 6 H 32.5 A 2.5 2.5 0 0 1 35 8.5 V 13 H 5 V 8.5 A 2.5 2.5 0 0 1 7.5 6 Z" className="fill-emerald-600 dark:fill-emerald-500" />
+        <path d="M 7.5 6 H 32.5 A 2.5 2.5 0 0 1 35 8.5 V 13 H 5 V 8.5 A 2.5 2.5 0 0 1 7.5 6 Z" className="fill-[#00274C] dark:fill-[#FFCB05]" />
         <line x1="5" y1="20" x2="35" y2="20" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1} />
         <line x1="5" y1="27" x2="35" y2="27" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1} />
         <line x1="15" y1="13" x2="15" y2="34" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1} />
         <line x1="25" y1="13" x2="25" y2="34" className="stroke-zinc-300 dark:stroke-zinc-600" strokeWidth={1} />
-        <rect x="15.6" y="20.6" width="9.2" height="6.2" className="fill-emerald-100 stroke-emerald-600 dark:fill-emerald-950 dark:stroke-emerald-400" strokeWidth={1.4} />
+        <rect x="15.6" y="20.6" width="9.2" height="6.2" className="fill-[#FFCB05]/50 stroke-[#00274C] dark:fill-[#FFCB05]/20 dark:stroke-[#FFCB05]" strokeWidth={1.4} />
       </svg>
     </div>
   );
