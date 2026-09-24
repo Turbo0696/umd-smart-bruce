@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CreateUserForm } from "./CreateUserForm";
+import { ResetPasswordButton } from "./ResetPasswordButton";
 import { RoleSelect } from "./RoleSelect";
 
 export default async function AdminUsersPage() {
@@ -41,6 +42,9 @@ export default async function AdminUsersPage() {
               <th className="border-b border-zinc-200 px-4 py-2 font-normal dark:border-zinc-700">
                 Role
               </th>
+              <th className="border-b border-zinc-200 px-4 py-2 font-normal dark:border-zinc-700">
+                Password
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -57,6 +61,9 @@ export default async function AdminUsersPage() {
                 </td>
                 <td className="px-4 py-2">
                   <RoleSelect userId={u.id} role={u.role} />
+                </td>
+                <td className="px-4 py-2">
+                  <ResetPasswordButton email={u.email} />
                 </td>
               </tr>
             ))}
