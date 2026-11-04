@@ -185,9 +185,9 @@ describe("LINEST with dependent columns, like Excel", () => {
     // Output order is D, C, B, intercept; C is the dropped one.
     expect([r.G1.num, r.G2.num]).toEqual([0, 0]);
     expect(r.G4.num).toBe(N - 3);
-    expect(near(r.F1.num, two.K1.num, 1e-9)).toBe(true);
-    expect(near(r.H1.num, two.L1.num, 1e-9)).toBe(true);
-    expect(near(r.I1.num, two.M1.num, 1e-9)).toBe(true);
+    expect(near(r.F1.num, num(two, "K1"), 1e-9)).toBe(true);
+    expect(near(r.H1.num, num(two, "L1"), 1e-9)).toBe(true);
+    expect(near(r.I1.num, num(two, "M1"), 1e-9)).toBe(true);
   });
 
   it("a constant column with an intercept, or an all-zero column, is dropped", () => {
@@ -195,8 +195,8 @@ describe("LINEST with dependent columns, like Excel", () => {
     for (const filler of [4, 0]) {
       const r = lin({ ...col("A", Y), ...col("B", X1), ...col("C", Array<number>(N).fill(filler)) }, FULL);
       expect([r.F1.num, r.F2.num]).toEqual([0, 0]);
-      expect(near(r.G1.num, simple.F1.num, 1e-9)).toBe(true);
-      expect(near(r.H1.num, simple.G1.num, 1e-9)).toBe(true);
+      expect(near(r.G1.num, num(simple, "F1"), 1e-9)).toBe(true);
+      expect(near(r.H1.num, num(simple, "G1"), 1e-9)).toBe(true);
     }
   });
 });
