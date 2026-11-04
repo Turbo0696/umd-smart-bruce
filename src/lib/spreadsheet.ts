@@ -1,4 +1,4 @@
-// Formula engine for the Excel Simulator: a 10 × 10 sheet (A1:J10) with
+// Formula engine for the Excel Simulator: a 15 × 15 sheet (A1:O15) with
 // Excel-style statistical functions. Pure functions only — the UI state lives
 // in spreadsheetState.ts.
 
@@ -20,11 +20,12 @@ import {
   tCentral,
   tTwoTail,
 } from "@/lib/spreadsheetMath";
+import { type LinestCell, linest } from "@/lib/spreadsheetLinest";
 
-export const COLS = "ABCDEFGHIJ";
-export const N = 10;
+export const COLS = "ABCDEFGHIJKLMNO";
+export const N = 15;
 
-/** Raw cell contents by key ("A1"…"J10"). Empty cells are absent. */
+/** Raw cell contents by key ("A1"…"O15"). Empty cells are absent. */
 export type Cells = Record<string, string>;
 
 export interface Rect {
@@ -78,6 +79,64 @@ type Arg = number | string | Arg[] | CellArg;
 type Fn = (...a: Arg[]) => number;
 
 const isCellArg = (x: Arg): x is CellArg => typeof x === "object" && !Array.isArray(x);
+
+/** A range argument carries its shape, since the values themselves are flattened row by row. */
+type RangeArg = Arg[] & { rows?: number; cols?: number };
+
+/** Stands in for an argument left out between commas, as in LINEST(y,x,,TRUE). */
+const OMITTED: CellArg = { cell: "" };
+
+/** A function result that fills a block of cells instead of one cell. */
+type Matrix = LinestCell[][];
+
+interface Grid {
+  rows: number;
+  cols: number;
+  vals: (number | string)[];
+}
+
+/** An argument as a rows × cols grid of values, row by row. A single value is 1 × 1. */
+function grid(a: Arg): Grid {
+  if (Array.isArray(a)) {
+    const vals = a.map((v) => (isCellArg(v) ? v.cell : (v as number | string)));
+    const shape = a as RangeArg;
+    return { rows: shape.rows ?? vals.length, cols: shape.cols ?? 1, vals };
+  }
+  return { rows: 1, cols: 1, vals: [isCellArg(a) ? a.cell : a] };
+}
+
+/** The grid's values, all of which must be numbers (a blank or text cell is #VALUE!, as in Excel). */
+function gridNumbers(g: Grid): number[] {
+  return g.vals.map((v) => (typeof v === "number" ? v : fail("#VALUE!")));
+}
+
+/** LINEST(known_y's, [known_x's], [const], [stats]). */
+function linestFn(args: Arg[]): Matrix {
+  if (args.length < 1 || args.length > 4) fail("#ERR!");
+  const given = (i: number) => (args[i] === undefined || args[i] === OMITTED ? undefined : args[i]);
+  const flag = (i: number, dflt: boolean) => (given(i) === undefined ? dflt : S(given(i)) !== 0);
+
+  const yg = grid(args[0]);
+  if (yg.rows > 1 && yg.cols > 1) fail("#REF!");
+  const y = gridNumbers(yg);
+  const n = y.length;
+  const byRow = yg.rows === 1 && yg.cols > 1; // observations run across a row
+
+  let X: number[][]; // one row per observation, one column per variable
+  const xa = given(1);
+  if (xa === undefined) {
+    X = y.map((_, t) => [t + 1]);
+  } else {
+    const xg = grid(xa);
+    const xv = gridNumbers(xg);
+    if ((byRow ? xg.cols : xg.rows) !== n) fail("#REF!");
+    const vars = byRow ? xg.rows : xg.cols;
+    X = Array.from({ length: n }, (_, t) =>
+      Array.from({ length: vars }, (_, j) => (byRow ? xv[j * xg.cols + t] : xv[t * xg.cols + j])),
+    );
+  }
+  return linest(y, X, flag(2, true), flag(3, false)) ?? fail("#NUM!");
+}
 
 /** Numbers among the arguments. Like Excel, blank and text cells in references are skipped. */
 function flat(a: Arg[]): number[] {
@@ -404,6 +463,10 @@ export const FUNCTION_GROUPS: { label: string; names: string[] }[] = [
     ],
   },
   {
+    label: "Regression",
+    names: ["LINEST"],
+  },
+  {
     label: "Normal & t",
     names: [
       "NORM.DIST", "NORM.INV", "NORM.S.DIST", "NORM.S.INV", "T.DIST", "T.DIST.2T",
@@ -428,9 +491,9 @@ type Token =
 
 const NUM_RE = /^(?:\d+\.?\d*|\.\d+)(?:E[+-]?\d+)?/;
 const WORD_RE = /^[$A-Z_][$A-Z0-9_.]*/;
-const CELL_RE = /^\$?([A-J])\$?(10|[1-9])$/;
-const COL_ONLY_RE = /^\$?([A-J])$/;
-const ROW_ONLY_RE = /^\$?(10|[1-9])$/;
+const CELL_RE = /^\$?([A-O])\$?(1[0-5]|[1-9])$/;
+const COL_ONLY_RE = /^\$?([A-O])$/;
+const ROW_ONLY_RE = /^\$?(1[0-5]|[1-9])$/;
 
 function tokenize(src: string): Token[] {
   const out: Token[] = [];
@@ -478,13 +541,16 @@ type Lookup = (k: string) => number | string;
  *            | cell | TRUE | FALSE
  *   arg     := cell ":" cell | column ":" column | row ":" row | cell (on its own) | expr
  * (A:A, $B:D and 2:2, 1:$5 are whole columns and rows.)
- * A range is only valid as a function argument.
+ * A range is only valid as a function argument. LINEST returns a block of values when it is
+ * the whole formula (see evaluateSheet); anywhere else it gives its first value, the slope.
  */
-function evalFormula(formula: string, lookup: Lookup): number {
+function evalFormula(formula: string, lookup: Lookup): number | Matrix {
   const upper = formula.toUpperCase();
   if (upper.includes("#REF!")) fail("#REF!");
   const toks = tokenize(upper);
   let pos = 0;
+  // The block LINEST returned, and where its call sits in the tokens.
+  let matrix: { m: Matrix; start: number; end: number } | null = null;
 
   const isOp = (v: string) => {
     const t = toks[pos];
@@ -510,7 +576,7 @@ function evalFormula(formula: string, lookup: Lookup): number {
     for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
       for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) out.push(lookup(COLS[c] + r));
     }
-    return out;
+    return Object.assign(out, { rows: Math.abs(r2 - r1) + 1, cols: Math.abs(c2 - c1) + 1 });
   };
 
   const range = (a: string, b: string): Arg[] => {
@@ -581,19 +647,28 @@ function evalFormula(formula: string, lookup: Lookup): number {
       return v;
     }
     if (isOp("(")) {
+      const start = pos - 1;
       pos++;
+      const isLinest = t.v === "LINEST";
       const fn = FUNCTIONS[t.v];
-      if (!fn) return fail("#NAME?");
+      if (!fn && !isLinest) return fail("#NAME?");
       const args: Arg[] = [];
+      // Only LINEST accepts an argument left empty between commas.
+      const next = () => (isLinest && (isOp(",") || isOp(")")) ? OMITTED : arg());
       if (!isOp(")")) {
-        args.push(arg());
+        args.push(next());
         while (isOp(",")) {
           pos++;
-          args.push(arg());
+          args.push(next());
         }
       }
       eat(")");
-      return fn(...args);
+      if (isLinest) {
+        const m = linestFn(args);
+        matrix = { m, start, end: pos };
+        return m[0][0] as number; // the slope: a coefficient is always a number
+      }
+      return fn!(...args);
     }
     if (t.v === "TRUE") return 1;
     if (t.v === "FALSE") return 0;
@@ -657,6 +732,9 @@ function evalFormula(formula: string, lookup: Lookup): number {
   // A leftover ":" is a bare range (=A1:B2), which can't be a single value.
   if (pos < toks.length) fail(isOp(":") ? "#VALUE!" : "#ERR!");
   if (!Number.isFinite(result)) return fail("#NUM!"); // overflow, or NaN such as ∞ − ∞
+  // =LINEST(...) on its own fills a block; inside a larger formula it is just its first value.
+  const whole = matrix as { m: Matrix; start: number; end: number } | null;
+  if (whole && whole.start === 0 && whole.end === toks.length) return whole.m;
   return result;
 }
 
@@ -679,26 +757,49 @@ export function formatNumber(v: number): string {
   );
 }
 
-/** Evaluates every cell once, sharing results between dependents. */
-export function evaluateSheet(cells: Cells): Record<string, CellResult> {
-  const memo = new Map<string, { v: number | string } | { err: SheetError }>();
-  const inProgress = new Set<string>();
+/** A formula that may be a whole-formula LINEST, whose result spills into the cells beside and below it. */
+const SPILL_FORMULA = /^=\s*LINEST\s*\(/i;
 
-  function value(k: string): number | string {
-    const raw = cells[k];
-    if (raw === undefined || raw === "") return "";
-    if (raw[0] !== "=") return isNumeric(raw) ? parseFloat(raw) : raw;
+/**
+ * Evaluates every cell once, sharing results between dependents.
+ *
+ * =LINEST(...) as a whole formula fills a block starting at its own cell, like
+ * Excel's dynamic arrays: the other cells of the block show its values, and
+ * the formula shows #SPILL! if the block runs off the sheet or hits a cell
+ * that isn't empty.
+ */
+export function evaluateSheet(cells: Cells): Record<string, CellResult> {
+  type Evaluated = { v: number; m: Matrix | null };
+  const memo = new Map<string, { r: Evaluated } | { err: SheetError }>();
+  const spillMemo = new Map<string, { m: Matrix | null } | { err: SheetError }>();
+  const inProgress = new Set<string>();
+  const spillBusy = new Set<string>();
+
+  // Cells that may spill, in reading order.
+  const anchors = Object.keys(cells)
+    .filter((k) => SPILL_FORMULA.test(cells[k]))
+    .sort((a, b) => {
+      const [ac, ar] = parseKey(a);
+      const [bc, br] = parseKey(b);
+      return ar - br || ac - bc;
+    });
+
+  const isEmpty = (k: string) => cells[k] === undefined || cells[k] === "";
+
+  /** A formula cell's result, memoized. */
+  function evaluate(k: string): Evaluated {
     const hit = memo.get(k);
     if (hit) {
       if ("err" in hit) throw hit.err;
-      return hit.v;
+      return hit.r;
     }
     if (inProgress.has(k)) return fail("#CIRC!");
     inProgress.add(k);
     try {
-      const v = evalFormula(raw.slice(1), value);
-      memo.set(k, { v });
-      return v;
+      const v = evalFormula(cells[k].slice(1), value);
+      const r: Evaluated = typeof v === "number" ? { v, m: null } : { v: v[0][0] as number, m: v };
+      memo.set(k, { r });
+      return r;
     } catch (e) {
       const err = e instanceof SheetError ? e : new SheetError("#ERR!");
       memo.set(k, { err });
@@ -706,6 +807,78 @@ export function evaluateSheet(cells: Cells): Record<string, CellResult> {
     } finally {
       inProgress.delete(k);
     }
+  }
+
+  /** The block an anchor fills (null if its formula gave a single value); throws if it can't fill it. */
+  function spillOf(k: string): Matrix | null {
+    const hit = spillMemo.get(k);
+    if (hit) {
+      if ("err" in hit) throw hit.err;
+      return hit.m;
+    }
+    if (spillBusy.has(k)) return fail("#CIRC!");
+    spillBusy.add(k);
+    try {
+      const m = evaluate(k).m;
+      if (m) {
+        const [c0, r0] = parseKey(k);
+        const w = m[0].length;
+        const h = m.length;
+        if (c0 + w > N || r0 + h > N) fail("#SPILL!");
+        for (let r = r0; r < r0 + h; r++)
+          for (let c = c0; c < c0 + w; c++) if ((c !== c0 || r !== r0) && !isEmpty(cellKey(c, r))) fail("#SPILL!");
+        // An earlier formula that already claimed some of these cells wins.
+        for (const a of anchors) {
+          if (a === k) break;
+          let am: Matrix | null = null;
+          try {
+            am = spillOf(a);
+          } catch {
+            continue;
+          }
+          if (!am) continue;
+          const [ac, ar] = parseKey(a);
+          if (ac < c0 + w && c0 < ac + am[0].length && ar < r0 + h && r0 < ar + am.length) fail("#SPILL!");
+        }
+      }
+      spillMemo.set(k, { m });
+      return m;
+    } catch (e) {
+      const err = e instanceof SheetError ? e : new SheetError("#ERR!");
+      spillMemo.set(k, { err });
+      throw err;
+    } finally {
+      spillBusy.delete(k);
+    }
+  }
+
+  /** What a spilled formula puts in an otherwise empty cell, or "" if no formula spills there. */
+  function spilledValue(k: string): number | string {
+    const [c, r] = parseKey(k);
+    for (const a of anchors) {
+      const [ac, ar] = parseKey(a);
+      if (ac > c || ar > r || inProgress.has(a) || spillBusy.has(a)) continue;
+      let m: Matrix | null;
+      try {
+        m = spillOf(a);
+      } catch {
+        continue;
+      }
+      const cell = m?.[r - ar]?.[c - ac];
+      if (cell === undefined) continue;
+      if (typeof cell === "number") return cell;
+      throw new SheetError(cell);
+    }
+    return "";
+  }
+
+  function value(k: string): number | string {
+    const raw = cells[k];
+    if (raw === undefined || raw === "") return anchors.length ? spilledValue(k) : "";
+    if (raw[0] !== "=") return isNumeric(raw) ? parseFloat(raw) : raw;
+    const r = evaluate(k);
+    if (r.m) spillOf(k);
+    return r.v;
   }
 
   const out: Record<string, CellResult> = {};
@@ -728,10 +901,10 @@ export function evaluateSheet(cells: Cells): Record<string, CellResult> {
 
 /* ---------- copy / fill / F4 helpers ---------- */
 
-const REF_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)([A-J])(\$?)(10|[1-9])(?![A-Za-z0-9_.])/gi;
+const REF_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)([A-O])(\$?)(1[0-5]|[1-9])(?![A-Za-z0-9_.])/gi;
 // Whole-column (A:C) and whole-row (2:5) references.
-const COL_SPAN_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)([A-J]):(\$?)([A-J])(?![A-Za-z0-9_.(])/gi;
-const ROW_SPAN_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)(10|[1-9]):(\$?)(10|[1-9])(?![A-Za-z0-9_.])/g;
+const COL_SPAN_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)([A-O]):(\$?)([A-O])(?![A-Za-z0-9_.(])/gi;
+const ROW_SPAN_IN_FORMULA = /(^|[^A-Za-z0-9_.$])(\$?)(1[0-5]|[1-9]):(\$?)(1[0-5]|[1-9])(?![A-Za-z0-9_.])/g;
 
 /**
  * Moves the relative references in a formula by (dc, dr), the way copying a
@@ -803,10 +976,10 @@ export function fillRange(cells: Cells, src: Rect, dir: FillDir, n: number): Cel
   return out;
 }
 
-const COL_SPAN_TOKEN = /(^|[^A-Za-z0-9_.$])(\$?[A-J]:\$?[A-J])(?![A-Za-z0-9_.(])/gi;
-const ROW_SPAN_TOKEN = /(^|[^A-Za-z0-9_.$])(\$?(?:10|[1-9]):\$?(?:10|[1-9]))(?![A-Za-z0-9_.(])/gi;
+const COL_SPAN_TOKEN = /(^|[^A-Za-z0-9_.$])(\$?[A-O]:\$?[A-O])(?![A-Za-z0-9_.(])/gi;
+const ROW_SPAN_TOKEN = /(^|[^A-Za-z0-9_.$])(\$?(?:1[0-5]|[1-9]):\$?(?:1[0-5]|[1-9]))(?![A-Za-z0-9_.(])/gi;
 const REF_TOKEN =
-  /(^|[^A-Za-z0-9_.$])(\$?[A-J]\$?(?:10|[1-9])(?::\$?[A-J]\$?(?:10|[1-9]))?)(?![A-Za-z0-9_.(])/gi;
+  /(^|[^A-Za-z0-9_.$])(\$?[A-O]\$?(?:1[0-5]|[1-9])(?::\$?[A-O]\$?(?:1[0-5]|[1-9]))?)(?![A-Za-z0-9_.(])/gi;
 
 /**
  * F4: cycles the reference under the caret through A1 → $A$1 → A$1 → $A1.
@@ -834,7 +1007,7 @@ export function cycleAbsolute(text: string, caret: number): { text: string; care
     if (caret < start || caret > end) continue;
     const first = m[2].split(":")[0];
     const colAbs = first[0] === "$";
-    const rowAbs = /^\$?[A-J]\$/i.test(first);
+    const rowAbs = /^\$?[A-O]\$/i.test(first);
     let dollarCol: boolean;
     let dollarRow: boolean;
     if (!colAbs && !rowAbs) [dollarCol, dollarRow] = [true, true];
@@ -844,7 +1017,7 @@ export function cycleAbsolute(text: string, caret: number): { text: string; care
     const next = m[2]
       .split(":")
       .map((part) => {
-        const q = /^\$?([A-J])\$?(10|[1-9])$/i.exec(part)!;
+        const q = /^\$?([A-O])\$?(1[0-5]|[1-9])$/i.exec(part)!;
         return (dollarCol ? "$" : "") + q[1].toUpperCase() + (dollarRow ? "$" : "") + q[2];
       })
       .join(":");

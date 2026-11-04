@@ -29,7 +29,7 @@ describe("selection and navigation", () => {
     s = run(s, { type: "move", dc: 1, dr: 0, extend: true }, { type: "move", dc: 0, dr: 2, extend: true });
     expect(selRect(s)).toEqual({ c0: 0, c1: 1, r0: 0, r1: 2 });
     s = run(s, { type: "move", dc: 50, dr: 50, extend: false });
-    expect(s.cur).toEqual([9, 9]);
+    expect(s.cur).toEqual([14, 14]);
   });
 
   it("drag-selects and stops on mouse up", () => {
@@ -43,11 +43,11 @@ describe("selection and navigation", () => {
     let s = run(blank(), at(1, 1), { type: "mouseUp" }, click(3, 4, 0, true));
     expect(selRect(s)).toEqual({ c0: 1, c1: 3, r0: 1, r1: 4 });
     s = run(s, { type: "selectHeader", header: { col: 2 }, shift: false, sel: { start: 0, end: 0 } });
-    expect(selRect(s)).toEqual({ c0: 2, c1: 2, r0: 0, r1: 9 });
+    expect(selRect(s)).toEqual({ c0: 2, c1: 2, r0: 0, r1: 14 });
     s = run(s, { type: "selectHeader", header: { row: 4 }, shift: false, sel: { start: 0, end: 0 } });
-    expect(selRect(s)).toEqual({ c0: 0, c1: 9, r0: 4, r1: 4 });
+    expect(selRect(s)).toEqual({ c0: 0, c1: 14, r0: 4, r1: 4 });
     s = run(s, { type: "selectHeader", header: "all", shift: false, sel: { start: 0, end: 0 } });
-    expect(selRect(s)).toEqual({ c0: 0, c1: 9, r0: 0, r1: 9 });
+    expect(selRect(s)).toEqual({ c0: 0, c1: 14, r0: 0, r1: 14 });
   });
 });
 
@@ -224,10 +224,10 @@ describe("copy, cut, paste", () => {
   });
 
   it("pasting text from elsewhere is taken literally, and clips to the sheet", () => {
-    let s = run(blank(), at(8, 8), { type: "mouseUp" });
+    let s = run(blank(), at(13, 13), { type: "mouseUp" });
     s = run(s, { type: "paste", text: "1\t2\t3\r\n4\t5\t6\r\n" });
-    expect(s.cells).toEqual({ I9: "1", J9: "2", I10: "4", J10: "5" });
-    expect(selRect(s)).toEqual({ c0: 8, c1: 9, r0: 8, r1: 9 });
+    expect(s.cells).toEqual({ N14: "1", O14: "2", N15: "4", O15: "5" });
+    expect(selRect(s)).toEqual({ c0: 13, c1: 14, r0: 13, r1: 14 });
   });
 
   it("cut moves the values and drops the clip", () => {
@@ -272,9 +272,9 @@ describe("gridKeyAction", () => {
   it("lets Tab leave the grid at the row edges", () => {
     const at = (k: string, c: number, shiftKey: boolean) =>
       gridKeyAction({ key: k, shiftKey, ctrlKey: false, metaKey: false, altKey: false }, [c, 0]);
-    expect(at("Tab", 9, false)).toBeNull();
+    expect(at("Tab", 14, false)).toBeNull();
     expect(at("Tab", 0, true)).toBeNull();
-    expect(at("Tab", 9, true)).not.toBeNull();
+    expect(at("Tab", 14, true)).not.toBeNull();
     expect(at("Tab", 0, false)).not.toBeNull();
   });
 });
@@ -305,11 +305,11 @@ describe("whole columns and rows while typing a formula", () => {
   it("a column or row header inserts A:A or 2:2, and the next click replaces it", () => {
     let s = run(blank(), { type: "startEdit", init: "=SUM(" }, hdr({ col: 1 }, 5));
     expect(text(s)).toBe("=SUM(B:B");
-    expect(pointingRect(s.pt!)).toEqual({ c0: 1, c1: 1, r0: 0, r1: 9 }); // the whole column is highlighted
+    expect(pointingRect(s.pt!)).toEqual({ c0: 1, c1: 1, r0: 0, r1: 14 }); // the whole column is highlighted
     expect(s.cur).toEqual([0, 0]); // selection stays on the cell being edited
     s = run(s, { type: "mouseUp" }, hdr({ row: 2 }, 5));
     expect(text(s)).toBe("=SUM(3:3");
-    expect(pointingRect(s.pt!)).toEqual({ c0: 0, c1: 9, r0: 2, r1: 2 });
+    expect(pointingRect(s.pt!)).toEqual({ c0: 0, c1: 14, r0: 2, r1: 2 });
   });
 
   it("dragging across headers, or over cells, grows the reference", () => {
@@ -360,8 +360,8 @@ describe("whole columns and rows while typing a formula", () => {
   it("outside a formula, or where a reference can't go, a header still selects", () => {
     let s = run(blank(), { type: "startEdit", init: "=SUM" }, hdr({ col: 2 }, 4));
     expect(s.cells.A1).toBe("=SUM"); // committed, not extended
-    expect(selRect(s)).toEqual({ c0: 2, c1: 2, r0: 0, r1: 9 });
+    expect(selRect(s)).toEqual({ c0: 2, c1: 2, r0: 0, r1: 14 });
     s = run(blank(), hdr({ row: 3 }, 0));
-    expect(selRect(s)).toEqual({ c0: 0, c1: 9, r0: 3, r1: 3 });
+    expect(selRect(s)).toEqual({ c0: 0, c1: 14, r0: 3, r1: 3 });
   });
 });

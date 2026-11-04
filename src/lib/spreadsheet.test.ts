@@ -97,7 +97,7 @@ describe("evaluation", () => {
     expect(show("=NORM.S.INV(1.5)")).toBe("#NUM!");
     expect(show("=HELLO(1)")).toBe("#NAME?");
     expect(show("=FOO")).toBe("#NAME?");
-    expect(show("=K1")).toBe("#NAME?");
+    expect(show("=P1")).toBe("#NAME?");
     expect(show("=B1+1", { B1: "text" })).toBe("#VALUE!");
     expect(show("=SQRT(B1:B2)", { B1: "1", B2: "2" })).toBe("#VALUE!");
     expect(show("=B1:B2", { B1: "1" })).toBe("#VALUE!");
@@ -151,7 +151,7 @@ describe("shiftFormula", () => {
   it("leaves function names alone and flags refs pushed off the sheet", () => {
     expect(shiftFormula("=T.DIST(A1,5,1)", 1, 0)).toBe("=T.DIST(B1,5,1)");
     expect(shiftFormula("=A1+1", -1, 0)).toBe("=#REF!+1");
-    expect(shiftFormula("=J10", 0, 1)).toBe("=#REF!");
+    expect(shiftFormula("=O15", 0, 1)).toBe("=#REF!");
   });
 });
 
@@ -176,8 +176,8 @@ describe("fillRange", () => {
   });
 
   it("repeats a mixed pattern and stops at the sheet edge", () => {
-    const out = fillRange({ A9: "x", A10: "y" }, { c0: 0, c1: 0, r0: 8, r1: 9 }, "d", 3);
-    expect(Object.keys(out).sort()).toEqual(["A10", "A9"]);
+    const out = fillRange({ A14: "x", A15: "y" }, { c0: 0, c1: 0, r0: 13, r1: 14 }, "d", 3);
+    expect(Object.keys(out).sort()).toEqual(["A14", "A15"]);
     const mixed = fillRange({ A1: "x", A2: "y" }, { c0: 0, c1: 0, r0: 0, r1: 1 }, "d", 3);
     expect([mixed.A3, mixed.A4, mixed.A5]).toEqual(["x", "y", "x"]);
   });
@@ -434,8 +434,8 @@ describe("whole columns and rows", () => {
   });
 
   it("rejects things that aren't columns or rows of this sheet", () => {
-    expect(show("=SUM(K:K)")).toBe("#NAME?");
-    expect(show("=SUM(11:11)")).toBe("#ERR!");
+    expect(show("=SUM(P:P)")).toBe("#NAME?");
+    expect(show("=SUM(16:16)")).toBe("#ERR!");
     expect(show("=B:B", data)).toBe("#VALUE!"); // a range isn't a single value
     expect(show("=2:2", data)).toBe("#VALUE!");
   });
@@ -446,7 +446,7 @@ describe("whole columns and rows", () => {
     expect(shiftFormula("=SUM(A:A)", -1, 0)).toBe("=SUM(#REF!)");
     expect(shiftFormula("=SUM(2:3)", 4, 1)).toBe("=SUM(3:4)");
     expect(shiftFormula("=SUM($2:3)", 0, 1)).toBe("=SUM($2:4)");
-    expect(shiftFormula("=SUM(9:10)", 0, 1)).toBe("=SUM(#REF!)");
+    expect(shiftFormula("=SUM(14:15)", 0, 1)).toBe("=SUM(#REF!)");
     expect(shiftFormula("=SUM(A:A)/A1", 1, 1)).toBe("=SUM(B:B)/B2");
     expect(shiftFormula("=SUM(A1:B2)", 1, 1)).toBe("=SUM(B2:C3)"); // cell ranges are unaffected
     const out = fillRange({ A9: "=SUM(A:A)" }, { c0: 0, c1: 0, r0: 8, r1: 8 }, "r", 2);
@@ -458,5 +458,113 @@ describe("whole columns and rows", () => {
     expect(cycleAbsolute("=SUM($A:$C)", 7)).toEqual({ text: "=SUM(A:C)", caret: 8 });
     expect(cycleAbsolute("=SUM(2:3)", 7)).toEqual({ text: "=SUM($2:$3)", caret: 10 });
     expect(cycleAbsolute("=SUM(A:A)", 3)).toBeNull();
+  });
+});
+
+describe("LINEST", () => {
+  // Values from numpy.linalg.lstsq on this data.
+  const y = [24.37, -2.9, 16.02, 11.25, 11.88, 15.01, 6.43, 12.49];
+  const x1 = [16.12, 2.33, 11.25, 8.3, 8.64, 9.35, 3.94, 9.3];
+  const x2 = [3.27, 11.65, 5.45, 4.29, 4.44, 3.66, 2.89, 4.22];
+  const data: Cells = {};
+  y.forEach((v, i) => {
+    data["A" + (i + 1)] = String(v);
+    data["B" + (i + 1)] = String(x1[i]);
+    data["C" + (i + 1)] = String(x2[i]);
+  });
+  const sheet = (f: string, others: Cells = {}) => evaluateSheet({ ...data, ...others, E1: f });
+  const at = (r: ReturnType<typeof sheet>, k: string) => r[k].num!;
+
+  it("fills the full statistics block in Excel's layout", () => {
+    const r = sheet("=LINEST(A1:A8,B1:C8,TRUE,TRUE)");
+    // Row 1: coefficients (last variable first, intercept last); row 2: standard errors.
+    expect([at(r, "E1"), at(r, "F1"), at(r, "G1")]).toEqual([
+      expect.closeTo(-0.7656056994, 9),
+      expect.closeTo(1.5230016231, 9),
+      expect.closeTo(2.4546621081, 9),
+    ]);
+    expect(at(r, "E2")).toBeCloseTo(0.1219863561, 9);
+    expect(at(r, "F2")).toBeCloseTo(0.0807494753, 9);
+    expect(at(r, "G2")).toBeCloseTo(1.1790399, 7);
+    expect(at(r, "E3")).toBeCloseTo(0.99328744, 8); // R²
+    expect(at(r, "F3")).toBeCloseTo(0.7614015004, 9); // standard error of y
+    expect(at(r, "E4")).toBeCloseTo(369.9361474, 6); // F
+    expect(at(r, "F4")).toBe(5); // residual df
+    expect(at(r, "E5")).toBeCloseTo(428.9278263, 6); // SS regression
+    expect(at(r, "F5")).toBeCloseTo(2.8986612239, 9); // SS residual
+    expect(r.G3.text).toBe("#N/A");
+    expect(r.G5.text).toBe("#N/A");
+    expect(r.E6.kind).toBe("empty");
+  });
+
+  it("defaults to coefficients only, with x and const optional", () => {
+    const r = sheet("=LINEST(A1:A8,B1:B8)");
+    expect(at(r, "E1")).toBeCloseTo(1.7972394734, 9);
+    expect(at(r, "F1")).toBeCloseTo(-3.7341110926, 9);
+    expect(r.E2.kind).toBe("empty");
+    expect(at(sheet("=LINEST(A1:A8,B1:B8,,TRUE)"), "F1")).toBeCloseTo(-3.7341110926, 9);
+    // Without x the variable is 1, 2, 3, …
+    expect(at(sheet("=LINEST(B1:B8)"), "F1")).toBeCloseTo(
+      x1.reduce((a, b) => a + b, 0) / 8 - (at(sheet("=LINEST(B1:B8)"), "E1") * 4.5),
+      9,
+    );
+  });
+
+  it("fits through the origin when const is FALSE", () => {
+    const r = sheet("=LINEST(A1:A8,B1:C8,FALSE,TRUE)");
+    expect(at(r, "E1")).toBeCloseTo(-0.5532046586, 9);
+    expect(at(r, "F1")).toBeCloseTo(1.6695449165, 9);
+    expect(at(r, "G1")).toBe(0);
+    expect(r.G2.text).toBe("#N/A");
+    expect(at(r, "E2")).toBeCloseTo(0.0834118397, 9);
+    expect(at(r, "E3")).toBeCloseTo(0.9965071482, 9); // uncentered R²
+    expect(at(r, "E4")).toBeCloseTo(855.8970255, 6);
+    expect(at(r, "F4")).toBe(6);
+  });
+
+  it("works across a row, and the block is usable by other formulas", () => {
+    const row: Cells = { A1: "1", B1: "3", C1: "2", D1: "5", A2: "1", B2: "2", C2: "3", D2: "4" };
+    const r = evaluateSheet({ ...row, F1: "=LINEST(A1:D1,A2:D2)", F4: "=F1+G1+1" });
+    expect(r.F1.num).toBeCloseTo(1.1, 12);
+    expect(r.G1.num).toBeCloseTo(0, 12);
+    expect(r.F4.num).toBeCloseTo(2.1, 12);
+  });
+
+  it("zeroes a collinear variable like Excel", () => {
+    const c: Cells = {};
+    [3, 5, 4, 8, 9, 12].forEach((v, i) => {
+      c["A" + (i + 1)] = String(v);
+      c["B" + (i + 1)] = String(i + 1);
+      c["C" + (i + 1)] = String(2 * (i + 1));
+    });
+    const r = evaluateSheet({ ...c, E1: "=LINEST(A1:A6,B1:C6,TRUE,TRUE)" });
+    expect([r.E1.num, r.E2.num]).toEqual([0, 0]);
+    expect(r.F1.num).toBeCloseTo(1.742857143, 9);
+    expect(r.F4.num).toBe(4); // df is n − 2, not n − 3
+  });
+
+  it("shows #SPILL! when the block is blocked or off the sheet", () => {
+    expect(sheet("=LINEST(A1:A8,B1:B8)", { F1: "5" }).E1.text).toBe("#SPILL!");
+    expect(evaluateSheet({ ...data, O15: "=LINEST(A1:A8,B1:B8)" }).O15.text).toBe("#SPILL!");
+    expect(sheet("=LINEST(A1:A8,B1:B8)", { F1: "5" }).F1.text).toBe("5");
+  });
+
+  it("reports bad input like Excel", () => {
+    expect(sheet("=LINEST(A2:A8,B1:B8)").E1.text).toBe("#REF!");
+    expect(sheet("=LINEST(A1:B8,B1:B8)").E1.text).toBe("#REF!");
+    expect(sheet("=LINEST(A1:A8,B1:B8)", { A3: "" }).E1.text).toBe("#VALUE!");
+    expect(sheet("=LINEST(A1:A8,B1:B8)", { A3: "abc" }).E1.text).toBe("#VALUE!");
+    const tiny: Cells = { A1: "1", A2: "2", B1: "1", B2: "2", C1: "3", C2: "5" };
+    expect(evaluateSheet({ ...tiny, E1: "=LINEST(A1:A2,B1:C2)" }).E1.text).toBe("#NUM!");
+  });
+
+  it("gives only the slope inside a larger formula", () => {
+    const r = sheet("=2*LINEST(A1:A8,B1:B8)");
+    expect(r.E1.num).toBeCloseTo(3.5944789467, 9);
+    expect(r.F1.kind).toBe("empty");
+  });
+
+  it("empty arguments are still an error elsewhere", () => {
+    expect(show("=SUM(1,,2)")).toBe("#ERR!");
   });
 });

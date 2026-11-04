@@ -120,7 +120,7 @@ export function ExcelSimulator() {
     for (let r = sel.r0; r <= sel.r1; r++) {
       for (let c = sel.c0; c <= sel.c1; c++) {
         const k = cellKey(c, r);
-        if (s.cells[k]) count++;
+        if (results[k].kind !== "empty") count++;
         const n = results[k].num;
         if (n !== null) nums.push(n);
       }
@@ -246,7 +246,7 @@ export function ExcelSimulator() {
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
       <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Excel Simulator</h1>
       <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-        A 10 × 10 practice spreadsheet with Excel&apos;s statistical functions. Type numbers and
+        A 15 × 15 practice spreadsheet with Excel&apos;s statistical functions. Type numbers and
         formulas, fill down, and copy and paste just like Excel.
       </p>
 
@@ -319,7 +319,7 @@ export function ExcelSimulator() {
         >
           <table
             role="grid"
-            aria-label="Spreadsheet, columns A to J, rows 1 to 10"
+            aria-label="Spreadsheet, columns A to O, rows 1 to 15"
             aria-multiselectable="true"
             style={{ width: ROW_HEADER_W + COL_W * N }}
             className="min-w-full table-fixed border-collapse text-sm text-zinc-900 dark:text-zinc-50"
